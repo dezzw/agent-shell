@@ -267,6 +267,35 @@ Each value is an alist with :value, :name, optional :description where
   (map-elt (agent-shell--config-option-by-category state "thought_level")
            :options))
 
+(defun agent-shell--model-config-options (state)
+  "Return select config options that belong beside the model picker.
+
+Includes options with ACP category \"model_config\"
+(https://agentclientprotocol.com/rfds/model-config-category).  Also
+includes an uncategorized select option with id \"fast\" (Cursor's
+parameterized Composer fast toggle) when it is not already listed.
+
+For example, against Cursor advertising separate model and fast options:
+
+  (agent-shell--model-config-options state)
+  => \\='(((:id . \"fast\") (:type . \"select\") ...))"
+  (let* ((options (agent-shell--config-options state))
+         (categorized (seq-filter (lambda (option)
+                                    (and (equal (map-elt option :category) "model_config")
+                                         (equal (map-elt option :type) "select")))
+                                  options))
+         (fast (agent-shell--config-option-get :state state :id "fast")))
+    (if (and fast
+             (equal (map-elt fast :type) "select")
+             (null (map-elt fast :category)))
+        (append categorized (list fast))
+      categorized)))
+
+(defun agent-shell--model-config-current-name (option)
+  "Return display name for OPTION's current value, or nil."
+  (when-let* ((current (map-elt option :current-value)))
+    (agent-shell--config-option-value-name option current)))
+
 ;;; Formatting
 
 (defun agent-shell--format-available-config-options (config-options)

@@ -88,7 +88,6 @@ We now have a handful of additional packages to extend the =agent-shell= experie
 - [[https://github.com/ElleNajt/meta-agent-shell][meta-agent-shell]]: Multi-agent coordination system for =agent-shell= with inter-agent communication, task tracking, and project-level dispatching.
 - [[https://github.com/cxa/agent-shell-macext][agent-shell-macext]]: macOS-specific enhancements for =agent-shell=.
 - [[https://github.com/lllShamanlll/agent-shell-org-transcript][agent-shell-org-transcript]]: Org-mode transcripts for =agent-shell= sessions, with org-roam integration.
-- [[https://github.com/lllShamanlll/agent-shell-org-config][agent-shell-org-config]]: Keep =agent-shell= agent, project, and skill definitions in org-roam.
 - [[https://github.com/eddof13/ob-agent-shell][ob-agent-shell]]: Org Babel backend for executing =agent-shell= source blocks.
 - [[https://github.com/Marx-A00/agent-recall][agent-recall]]: Search, browse, and resume =agent-shell= conversation transcripts.
 - [[https://github.com/lgmoneda/agent-shell-pet][agent-shell-pet]]: Codex-like pets that broadcast agent-shell session states.
@@ -955,13 +954,14 @@ When the active agent advertises the corresponding session option, you can switc
 - =C-c C-m= - Set session mode.
 - =C-c C-t= - Set thought level (reasoning effort).
 - =C-<tab>= - Cycle session mode.
+- Help menu (=?=) =f= - Set model config (ACP =model_config=, or Cursor's =fast= toggle).
 
-The current selections are shown in the header right after the agent name; click any segment to open a popup menu. The thought level segment only appears for models that expose it (e.g. Claude Sonnet/Opus with effort levels; Codex's reasoning_effort).
+The current selections are shown in the header right after the agent name; click any segment to open a popup menu. Model config segments (for example Composer Fast/Off) appear beside the model when the agent advertises them. The thought level segment only appears for models that expose it (e.g. Claude Sonnet/Opus with effort levels; Codex's reasoning_effort).
 
 From the viewport (=agent-shell-viewport-view-mode= / =agent-shell-viewport-edit-mode=), the same controls are bound to:
 
-- View mode: =v= (model), =s= (mode), =t= (thought level).
-- Edit mode: =C-c C-v=, =C-c C-m=, =C-c C-t=.
+- View mode: =v= (model), =F= (model config), =s= (mode), =t= (thought level).
+- Edit mode: =C-c C-v=, =C-c C-f=, =C-c C-m=, =C-c C-t=.
 
 *** Evil
 Evil users may want to rebind ~RET~ for inserting a new line in =insert
@@ -1291,6 +1291,7 @@ always go to Evil modes if you need to with ~C-z~).
 | C-c C-s                                               | agent-shell-set-session-config-option                   | Set a session config option.                                                  |
 | C-c RET                                               | agent-shell-set-session-mode                            | Set session mode (if any available).                                          |
 | C-c C-v                                               | agent-shell-set-session-model                           | Set session model.                                                            |
+|                                                       | agent-shell-set-session-model-config                    | Set a model-config option (for example Cursor fast) for the session.          |
 | C-c C-t                                               | agent-shell-set-session-thought-level                   | Set thought level (reasoning effort) for the current session.                 |
 |                                                       | agent-shell-show-usage                                  | Display current session usage information in the minibuffer.                  |
 | RET                                                   | agent-shell-submit                                      | Submit the current input to the agent.                                        |
@@ -1348,6 +1349,7 @@ always go to Evil modes if you need to with ~C-z~).
 |                                                       | agent-shell-viewport-search-history                     | Search prompt history, select, and insert into compose buffer.                |
 |                                                       | agent-shell-viewport-set-session-mode                   | Set session mode.                                                             |
 |                                                       | agent-shell-viewport-set-session-model                  | Set session model.                                                            |
+| F / C-c C-f                                           | agent-shell-viewport-set-session-model-config           | Set a model-config option (for example Cursor fast) for the session.          |
 |                                                       | agent-shell-viewport-set-session-thought-level          | Set thought level (reasoning effort) for the current session.                 |
 |                                                       | agent-shell-viewport-view-acp-logs                      | View agent shell ACP logs buffer.                                             |
 |                                                       | agent-shell-viewport-view-last                          | Display the last request/response interaction.                                |

@@ -63,9 +63,6 @@
 (declare-function agent-shell-interrupt-confirmed-p "agent-shell")
 (declare-function agent-shell-open-transcript "agent-shell")
 (declare-function agent-shell-prompt-queue "agent-shell-prompt-queue")
-(declare-function agent-shell--busy-submit "agent-shell-prompt-queue")
-(defvar agent-shell-busy-submit-default-function)
-(defvar agent-shell-busy-submit-override-function)
 (declare-function agent-shell-prompt-queue-remove "agent-shell-prompt-queue")
 (declare-function agent-shell-prompt-queue-resume "agent-shell-prompt-queue")
 (declare-function agent-shell-view-acp-logs "agent-shell")
@@ -75,6 +72,7 @@
 (declare-function agent-shell-previous-permission-button "agent-shell")
 (declare-function agent-shell-set-session-mode "agent-shell")
 (declare-function agent-shell-set-session-model "agent-shell")
+(declare-function agent-shell-set-session-model-config "agent-shell")
 (declare-function agent-shell-set-session-thought-level "agent-shell")
 (declare-function agent-shell-ui-backward-block "agent-shell")
 (declare-function agent-shell-ui-forward-block "agent-shell")
@@ -215,7 +213,7 @@ queued right away, regardless of `agent-shell-viewport-dismiss-on-send'."
   (when (and (not (eq agent-shell-session-strategy 'new-deferred))
              (not (with-current-buffer (agent-shell-viewport--shell-buffer)
                     (map-nested-elt agent-shell--state '(:session :id)))))
-    (user-error "Starting agent, please wait"))
+    (user-error "Session not ready... please wait"))
   (setq agent-shell-viewport--compose-snapshot nil)
   (setq agent-shell-viewport--ring-index nil)
   (setq agent-shell-viewport--peek-location nil)
@@ -229,27 +227,6 @@ queued right away, regardless of `agent-shell-viewport-dismiss-on-send'."
    (t
     (agent-shell-viewport-compose-send-and-kill))))
 
-(defun agent-shell-viewport-compose-send-override (&optional keep-composing)
-  "Send the viewport composed prompt through the override route.
-
-Mid-turn the prompt goes to `agent-shell-busy-submit-override-function'
-rather than `agent-shell-busy-submit-default-function', so whichever of
-queueing and steering is not the default is one keystroke away.  With no
-turn running both simply submit, as \[agent-shell-viewport-compose-send]
-does.
-
-KEEP-COMPOSING behaves as it does there, so \[universal-argument]
-\[agent-shell-viewport-compose-send-override] overrides the route and
-keeps the compose buffer open for the next prompt.
-
-Rebinds the default for this one call rather than threading a flag
-through each way of sending, so every route stays a single code path."
-  (declare (modes agent-shell-viewport-edit-mode))
-  (interactive "P")
-  (let ((agent-shell-busy-submit-default-function
-         agent-shell-busy-submit-override-function))
-    (agent-shell-viewport-compose-send keep-composing)))
-
 (defun agent-shell-viewport-compose-send-and-kill ()
   "Send the viewport composed prompt to the agent shell and kill compose buffer."
   (declare (modes agent-shell-viewport-edit-mode))
@@ -261,7 +238,7 @@ through each way of sending, so every route stays a single code path."
         (prompt (string-trim (buffer-string))))
     (with-current-buffer shell-buffer
       (if (agent-shell-viewport--busy-p)
-          (agent-shell--busy-submit :prompt prompt)
+          (agent-shell-prompt-queue prompt)
         (agent-shell--insert-to-shell-buffer
          :text prompt
          :submit t)))
@@ -275,29 +252,26 @@ through each way of sending, so every route stays a single code path."
     (pop-to-buffer shell-buffer)))
 
 (defun agent-shell-viewport--compose-queue ()
-  "Send the composed prompt, then clear the compose buffer.
+  "Queue or submit the composed prompt, then clear the compose buffer.
 
-Mid-turn the prompt goes through `agent-shell-busy-submit-default-function',
-which queues by default, so prompts can be fired in a row; otherwise it is
-submitted.  Signals a `user-error' when the draft is empty.  Leaves the
-compose buffer open in edit mode, cleared.
+The prompt is queued when the shell is busy and submitted otherwise, so
+prompts can be fired in a row.  Signals a `user-error' when the draft is
+empty.  Leaves the compose buffer open in edit mode, cleared.
 
-A submitted prompt is echoed to the minibuffer as the active one, since
-the cleared compose buffer does not itself show it.  Mid-turn the chosen
-function does its own reporting: queueing echoes the queue, steering
-renders the prompt into the shell."
+When the prompt is submitted immediately (not queued), it is echoed to
+the minibuffer as the active prompt, since the cleared compose buffer
+does not itself show the submitted prompt.  When it is queued instead,
+`agent-shell-prompt-queue' already echoes the resulting queue."
   (let ((shell-buffer (agent-shell-viewport--shell-buffer))
         (prompt (string-trim (buffer-string)))
-        ;; Sampled before submitting, which clears it.
-        (busy (agent-shell-viewport--busy-p)))
+        ;; Sample busy state before `agent-shell-prompt-queue' below submits or queues.
+        (queued (agent-shell-viewport--busy-p)))
     (when (string-empty-p prompt)
       (user-error "Nothing to send"))
     (with-current-buffer shell-buffer
-      (if busy
-          (agent-shell--busy-submit :prompt prompt)
-        (agent-shell--insert-to-shell-buffer :text prompt :submit t :no-focus t)))
+      (agent-shell-prompt-queue prompt))
     (agent-shell-viewport--initialize)
-    (unless busy
+    (unless queued
       (agent-shell--prompt-queue-echo :active-prompt prompt))))
 
 (defun agent-shell-viewport-compose-send-and-dismiss ()
@@ -337,7 +311,7 @@ resolving to its shell on the next invocation."
         (user-error "Nothing to send"))
       (when (agent-shell-viewport--busy-p)
         (with-current-buffer shell-buffer
-          (agent-shell--busy-submit :prompt prompt))
+          (agent-shell-prompt-queue prompt))
         (with-current-buffer viewport-buffer
           (agent-shell-viewport-view-last))
         (throw 'exit nil))
@@ -1089,6 +1063,24 @@ buffer from the snapshot and switch to edit mode."
            (with-current-buffer viewport-buffer
              (agent-shell-viewport--update-header))))))))
 
+(defun agent-shell-viewport-set-session-model-config ()
+  "Set a model-config option (for example Cursor fast) for the session."
+  (declare (modes agent-shell-viewport-view-mode
+                  agent-shell-viewport-edit-mode))
+  (interactive)
+  (agent-shell-viewport--ensure-buffer)
+  (let* ((shell-buffer (or (agent-shell--current-shell)
+                           (user-error "Not in an agent-shell buffer")))
+         (viewport-buffer (agent-shell-viewport--buffer
+                          :shell-buffer shell-buffer
+                          :existing-only t)))
+    (with-current-buffer shell-buffer
+      (agent-shell-set-session-model-config
+       (lambda ()
+         (when viewport-buffer
+           (with-current-buffer viewport-buffer
+             (agent-shell-viewport--update-header))))))))
+
 (defun agent-shell-viewport-cycle-session-mode ()
   "Cycle through available session modes."
   (declare (modes agent-shell-viewport-view-mode
@@ -1224,15 +1216,13 @@ VIEWPORT-BUFFER is the viewport buffer to check."
 (defvar agent-shell-viewport-edit-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") #'agent-shell-viewport-compose-send)
-    ;; Both spellings: a GUI frame and a terminal disagree on which arrives.
-    (define-key map (kbd "M-RET") #'agent-shell-viewport-compose-send-override)
-    (define-key map (kbd "M-<return>") #'agent-shell-viewport-compose-send-override)
     (define-key map (kbd "C-c C-p") #'agent-shell-viewport-compose-peek-last)
     (define-key map (kbd "C-c C-k") #'agent-shell-viewport-compose-cancel)
     (define-key map (kbd "C-c C-h") #'agent-shell-viewport-compose-help-menu)
     (define-key map (kbd "C-<tab>") #'agent-shell-viewport-cycle-session-mode)
     (define-key map (kbd "C-c C-m") #'agent-shell-viewport-set-session-mode)
     (define-key map (kbd "C-c C-v") #'agent-shell-viewport-set-session-model)
+    (define-key map (kbd "C-c C-f") #'agent-shell-viewport-set-session-model-config)
     (define-key map (kbd "C-c C-t") #'agent-shell-viewport-set-session-thought-level)
     (define-key map (kbd "C-c C-o") #'agent-shell-other-buffer)
     (define-key map (kbd "M-p") #'agent-shell-viewport-previous-history)
@@ -1275,6 +1265,7 @@ VIEWPORT-BUFFER is the viewport buffer to check."
     (define-key map (kbd "c") #'agent-shell-viewport-reply-continue)
     (define-key map (kbd "s") #'agent-shell-viewport-set-session-mode)
     (define-key map (kbd "t") #'agent-shell-viewport-set-session-thought-level)
+    (define-key map (kbd "F") #'agent-shell-viewport-set-session-model-config)
     (define-key map (kbd "o") #'agent-shell-other-buffer)
     (define-key map (kbd "C-c C-o") #'agent-shell-other-buffer)
     (define-key map (kbd "?") #'agent-shell-viewport-help-menu)
@@ -1345,6 +1336,8 @@ VIEWPORT-BUFFER is the viewport buffer to check."
                          (:if-not . agent-shell-viewport--busy-p))
                         ((:function . agent-shell-viewport-set-session-model)
                          (:description . "Set model"))
+                        ((:function . agent-shell-viewport-set-session-model-config)
+                         (:description . "Set model config"))
                         ((:function . agent-shell-viewport-set-session-mode)
                          (:description . "Set mode"))
                         ((:function . agent-shell-viewport-set-session-thought-level)
@@ -1411,6 +1404,8 @@ VIEWPORT-BUFFER is the viewport buffer to check."
                       agent-shell-viewport-edit-mode-map
                       '(((:function . agent-shell-viewport-set-session-model)
                          (:description . "Set model"))
+                        ((:function . agent-shell-viewport-set-session-model-config)
+                         (:description . "Set model config"))
                         ((:function . agent-shell-viewport-set-session-mode)
                          (:description . "Set mode"))
                         ((:function . agent-shell-viewport-set-session-thought-level)
@@ -1524,6 +1519,10 @@ on current major mode."
                           (key-description (where-is-internal
                                             'agent-shell-viewport-set-session-model
                                             keymap t))))
+         (model-config-binding (when keymap
+                                 (key-description (where-is-internal
+                                                   'agent-shell-viewport-set-session-model-config
+                                                   keymap t))))
          (mode-binding (when keymap
                          (key-description (where-is-internal
                                            'agent-shell-viewport-set-session-mode
@@ -1539,6 +1538,7 @@ on current major mode."
                                                     :status status
                                                     :key-hints key-hints
                                                     :menu-keys `((:model . ,model-binding)
+                                                                 (:model-config . ,model-config-binding)
                                                                  (:mode . ,mode-binding)
                                                                  (:thought-level . ,thought-level-binding))))))
       (setq-local header-line-format header))))
