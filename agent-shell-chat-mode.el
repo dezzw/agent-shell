@@ -39,7 +39,6 @@
 
 ;;; Code:
 
-(require 'agent-shell-faces)
 (require 'map)
 (require 'seq)
 (eval-when-compile
@@ -52,7 +51,6 @@
 (declare-function agent-shell-unsubscribe "agent-shell")
 
 (defvar agent-shell--state)
-(defvar agent-shell-show-busy-indicator)
 ;; Soft reference: `agent-shell-prompt-bar-mode' may be unbound when the
 ;; prompt bar is not loaded.  Read it with `bound-and-true-p'.
 (defvar agent-shell-prompt-bar-mode)
@@ -68,35 +66,6 @@ When non-nil, starting a shell turns the (global) chat mode on, so that
 shell and any others render as a chat.  Toggling the mode off by hand is
 overridden the next time a shell starts."
   :type 'boolean
-  :group 'agent-shell)
-
-(defcustom agent-shell-prompt-busy-frames
-  '("|" "/" "-" "\\")
-  "Frames animating the live prompt's marker while the agent works.
-A list or vector of strings, drawn in the body indent ahead of the
-marker, a string shown as is, without animating, or a function
-returning either (or nil to show nothing).  For example,
-\\='(\"·\" \"•\" \"●\" \"•\") or \"(busy)\".
-
-A function takes no arguments and is called in the shell buffer on
-every heartbeat tick, so keep it cheap.  For example, to show
-\"(connecting)\" until the session starts, and \"(busy)\" after:
-
-  (lambda ()
-    (if (agent-shell-session-id) \"(busy)\" \"(connecting)\"))
-
-The body indent fits a single column, so a wider frame (like \"(busy)\")
-is followed by a plain space, pushing the marker right while the agent
-works.
-
-ASCII by default, so the buffer's own font draws them.  Anything a font
-may lack comes from a fallback font instead, which can draw it wider
-than a column or with a taller line, bouncing the prompt as frames
-change.  Braille, the usual spinner, is one such (and may show unraised
-dots)."
-  :type '(choice (string :tag "Static text")
-                 (repeat :tag "Frames" string)
-                 (function :tag "Function"))
   :group 'agent-shell)
 
 ;;; Constants
@@ -139,10 +108,6 @@ to the background); `:box' t adds a border in the foreground color."
 (defvar-local agent-shell-chat--relabel-timer nil
   "Pending coalesced relabel timer for this buffer, or nil.")
 
-(defvar-local agent-shell-chat--live-marker-overlay nil
-  "Overlay last found drawing the live prompt's marker, or nil.
-A hint only: see `agent-shell-chat--find-live-marker-overlay'.")
-
 ;;; Labels
 
 (defun agent-shell-chat--label (text face)
@@ -153,86 +118,6 @@ FACE carries the box (see `agent-shell-chat-me-label').
 For example, (agent-shell-chat--label \"Me\" \\='agent-shell-chat-me-label)
 returns \" Me \" in that face."
   (propertize (format " %s " text) 'face face))
-
-(defun agent-shell-chat--busy-frame ()
-  "Return the busy frame for the heartbeat's current beat, or nil when idle.
-
-For example, on the heartbeat's third beat returns \"-\".  With
-`agent-shell-prompt-busy-frames' set to a string, or to a function
-returning one, returns that string on every beat."
-  (when-let* (((bound-and-true-p agent-shell-show-busy-indicator))
-              (heartbeat (map-elt agent-shell--state :heartbeat))
-              ((eq (map-elt heartbeat :status) 'busy))
-              (frames (if (functionp agent-shell-prompt-busy-frames)
-                          (funcall agent-shell-prompt-busy-frames)
-                        agent-shell-prompt-busy-frames)))
-    (if (stringp frames)
-        frames
-      (seq-elt frames (mod (map-elt heartbeat :value) (seq-length frames))))))
-
-(defun agent-shell-chat--live-marker ()
-  "Return the live prompt's marker, animated while the agent works.
-
-For example, returns \"  ❯ \" when idle and \"| ❯ \" while busy, the
-frame faced `agent-shell-secondary' so it recedes behind the marker.
-
-A frame's glyph can come from a fallback font wider than a column, so
-the space after it aligns the marker to the body indent rather than
-trusting the frame's width.  Aligned in units of the buffer's own font,
-which unlike bare columns follow `text-scale-adjust'.  A frame wider
-than a column (like \"(busy)\") can't fit the indent, so a plain space
-follows it instead."
-  (if-let* ((frame (agent-shell-chat--busy-frame)))
-      (concat (propertize frame 'face 'agent-shell-secondary)
-              (propertize (concat (if (> (string-width frame) 1)
-                                      " "
-                                    (propertize " " 'display
-                                                `(space :align-to
-                                                        (,(string-width agent-shell-chat--body-indent)
-                                                         . width))))
-                                  agent-shell-chat--prompt)
-                          'face 'default))
-    (propertize (concat agent-shell-chat--body-indent agent-shell-chat--prompt)
-                'face 'default)))
-
-(defun agent-shell-chat--find-live-marker-overlay ()
-  "Return the overlay drawing the live prompt's marker, or nil.
-
-That overlay carries `agent-shell-chat--marker-head', which relabeling
-clears the moment its prompt is submitted.  The overlay found last is
-cached and trusted for as long as it still carries it: an overlay moves
-with the text around it, so text inserted or deleted above leaves it
-spanning the prompt.  One deleted, or whose prompt was submitted, sends
-this back to scanning the buffer.
-
-Runs on every heartbeat tick, where scanning would list every overlay in
-the buffer each time."
-  (if (and agent-shell-chat--live-marker-overlay
-           (overlay-buffer agent-shell-chat--live-marker-overlay)
-           (overlay-get agent-shell-chat--live-marker-overlay
-                        'agent-shell-chat--marker-head))
-      agent-shell-chat--live-marker-overlay
-    (setq agent-shell-chat--live-marker-overlay
-          (save-restriction
-            (widen)
-            (seq-find (lambda (overlay)
-                        (overlay-get overlay 'agent-shell-chat--marker-head))
-                      (overlays-in (point-min) (point-max)))))))
-
-(defun agent-shell-chat--animate-live-marker ()
-  "Redraw the live prompt's marker for the heartbeat's current beat.
-
-Runs on every heartbeat tick, so it rewrites the one overlay drawing the
-marker rather than relabeling the buffer.  That overlay carries the text
-drawn ahead of the marker as `agent-shell-chat--marker-head': empty
-where the marker is drawn alone as `display', and the `Me' label where
-both are drawn as `before-string'."
-  (when-let* ((overlay (agent-shell-chat--find-live-marker-overlay))
-              (head (overlay-get overlay 'agent-shell-chat--marker-head))
-              (property (if (string-empty-p head) 'display 'before-string))
-              (drawn (concat head (agent-shell-chat--live-marker))))
-    (unless (equal (overlay-get overlay property) drawn)
-      (overlay-put overlay property drawn))))
 
 (defun agent-shell-chat--agent-name ()
   "Return the attached agent's display name for the response label.
@@ -750,7 +635,9 @@ above, putting the first line of a multi-line input out of reach of
                ;; drop it the instant the user starts typing.  Carried as the
                ;; covered prompt's `display', standing on its buffer positions.
                (marker (when (and live labeled)
-                         (agent-shell-chat--live-marker)))
+                         (propertize (concat agent-shell-chat--body-indent
+                                             agent-shell-chat--prompt)
+                                     'face 'default)))
                ;; Indents the prompt's own line, which the input's first line
                ;; shares.  Where a marker heads that line, the first line starts
                ;; past it, so its wrapped rows clear the marker too.  An
@@ -865,14 +752,7 @@ above, putting the first line of a multi-line input out of reach of
                          (cons 'display (if label-nl (or marker "") ""))
                          (cons 'line-prefix
                                (if (and label-nl (not marker)) input-indent ""))
-                         (cons 'wrap-prefix (if label-nl input-indent ""))
-                         ;; What is drawn ahead of the marker, so a heartbeat
-                         ;; tick can redraw it alone (see
-                         ;; `agent-shell-chat--animate-live-marker').  Cleared
-                         ;; the moment the prompt is submitted.
-                         (cons 'agent-shell-chat--marker-head
-                               (when marker
-                                 (if label-nl "" before)))))
+                         (cons 'wrap-prefix (if label-nl input-indent ""))))
            kept)
           ;; Indent the live prompt's draft below its first line, which the
           ;; marker indents.  The overlay above covers the prompt text alone,
@@ -1190,7 +1070,6 @@ too."
                  #'agent-shell-chat--decorate-queued-prompt))
   (kill-local-variable 'agent-shell-chat--subscription)
   (kill-local-variable 'agent-shell-chat--relabel-timer)
-  (kill-local-variable 'agent-shell-chat--live-marker-overlay)
   (kill-local-variable 'agent-shell-chat--labeled))
 
 ;;; Mode

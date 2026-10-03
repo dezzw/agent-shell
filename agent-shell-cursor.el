@@ -260,6 +260,24 @@ Examples:
           content))
   acp-notification)
 
+(defun agent-shell-cursor--outgoing-request-decorator (request)
+  "Advertise Cursor parameterized model picker support on ACP `initialize'.
+
+Cursor exposes separate model and fast config options (e.g. Composer 2.5
+vs fast) only when the client sets `clientCapabilities._meta.parameterizedModelPicker'."
+  (when (equal (map-elt request :method) "initialize")
+    (let ((params (map-elt request :params)))
+      (setf (cdr (assq :params request))
+            (mapcar (lambda (pair)
+                      (if (eq (car pair) 'clientCapabilities)
+                          (cons 'clientCapabilities
+                                (append (map-elt params 'clientCapabilities)
+                                        (list (cons '_meta
+                                                      '((parameterizedModelPicker . t))))))
+                        pair))
+                    params))))
+  request)
+
 (defun agent-shell-cursor-make-agent-config ()
   "Create a Cursor agent configuration.
 
@@ -299,6 +317,14 @@ Uses `agent-shell-cursor-authentication' for authentication configuration."
     (error "Missing required argument: :buffer"))
   (when (and (boundp 'agent-shell-cursor-command) agent-shell-cursor-command)
     (user-error "Please migrate to use agent-shell-cursor-acp-command and eval (setq agent-shell-cursor-command nil)"))
+  (let* ((state (buffer-local-value 'agent-shell--state buffer))
+         (previous-decorator (map-elt state :outgoing-request-decorator)))
+    (map-put! state :outgoing-request-decorator
+              (lambda (request)
+                (setq request (agent-shell-cursor--outgoing-request-decorator request))
+                (if previous-decorator
+                    (funcall previous-decorator request)
+                  request))))
   (agent-shell--make-acp-client :command (car agent-shell-cursor-acp-command)
                                 :command-params (cdr agent-shell-cursor-acp-command)
                                 :environment-variables (append
