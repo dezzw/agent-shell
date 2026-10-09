@@ -5056,6 +5056,46 @@ FUNCTION should be a function accepting keyword arguments (&key ...)."
                    (list (car pair) (cdr pair)))
                  alist)))
 
+(defun agent-shell-welcome-message (config)
+  "Return welcome text for shell-maker CONFIG.
+
+Shows how to get help, how to support the project and the latest
+news.  Agents' `:welcome-function' typically place it below their
+own banner."
+  (concat
+   "     Welcome to "
+   (propertize (shell-maker-config-name config)
+               'font-lock-face 'font-lock-comment-face)
+   " shell\n\n\n"
+   "       Type " (propertize "help" 'font-lock-face 'italic) " and press "
+   (mapconcat (lambda (keys)
+                (propertize (key-description keys)
+                            'font-lock-face 'font-lock-string-face))
+              (where-is-internal #'agent-shell-submit agent-shell-mode-map)
+              " or ")
+   " for details.\n\n"
+   "       Like this package? Consider ✨"
+   (shell-maker-make-button-text "sponsoring"
+                                 (lambda ()
+                                   (browse-url "https://github.com/sponsors/xenodium")
+                                   (message "Thank you!")))
+   "✨\n\n"
+   "       NEWS\n\n"
+   ;; Align bullets with the welcome text.
+   (let ((agent-shell-markdown-list-line-prefix (make-string 7 ?\s)))
+     (agent-shell-markdown-convert
+      "- `2026-09-22` [agent-shell 0.78 updates](https://xenodium.com/agent-shell-0-78-updates)
+- `2026-08-15` [agent-shell 0.73 updates](https://xenodium.com/agent-shell-0-73-updates)
+- `2026-07-22` [agent-shell 0.63 updates](https://xenodium.com/agent-shell-0-63-updates)
+- `2026-06-11` [agent-shell 0.55 updates](https://xenodium.com/agent-shell-0-55-updates)
+- `2026-03-12` [agent-shell 0.47 updates](https://xenodium.com/agent-shell-0-47-1-updates)
+- `2025-12-20` [agent-shell 0.25 updates](https://xenodium.com/agent-shell-0-25-updates)
+- `2025-11-04` [agent-shell 0.17 improvements + MELPA](https://xenodium.com/agent-shell-016-improvements-melpa)
+- `2025-10-12` [agent-shell 0.5 improvements](https://xenodium.com/agent-shell-0-5-improvements)
+- `2025-09-25` [Introducing Emacs agent-shell (powered by ACP)](https://xenodium.com/introducing-agent-shell)
+- `2025-09-14` [Introducing acp.el](https://xenodium.com/introducing-acpel)"))
+   "\n\n"))
+
 (cl-defun agent-shell--start (&key config no-focus new-session session-strategy session-id fork-session-id outgoing-request-decorator)
   "Programmatically start shell with CONFIG.
 
@@ -5200,28 +5240,10 @@ variable (see makunbound)"))
       (set-marker (process-mark (shell-maker--process)) (point-max))
       (when (and agent-shell-show-welcome-message
                  (map-elt config :welcome-function))
-        (let* ((welcome (funcall (map-elt config :welcome-function)
-                                 shell-maker--config))
-               ;; Latest news goes ahead of the trailing padding.
-               (padding-start (string-match "[ \t\n]*\\'" welcome)))
-          (shell-maker-write-output
-           :config shell-maker--config
-           :output (concat (substring welcome 0 padding-start)
-                           "\n\n       NEWS\n\n"
-                           ;; Align bullets with the welcome text.
-                           (let ((agent-shell-markdown-list-line-prefix (make-string 7 ?\s)))
-                             (agent-shell-markdown-convert
-                              "- `2026-09-22` [agent-shell 0.78 updates](https://xenodium.com/agent-shell-0-78-updates)
-- `2026-08-15` [agent-shell 0.73 updates](https://xenodium.com/agent-shell-0-73-updates)
-- `2026-07-22` [agent-shell 0.63 updates](https://xenodium.com/agent-shell-0-63-updates)
-- `2026-06-11` [agent-shell 0.55 updates](https://xenodium.com/agent-shell-0-55-updates)
-- `2026-03-12` [agent-shell 0.47 updates](https://xenodium.com/agent-shell-0-47-1-updates)
-- `2025-12-20` [agent-shell 0.25 updates](https://xenodium.com/agent-shell-0-25-updates)
-- `2025-11-04` [agent-shell 0.17 improvements + MELPA](https://xenodium.com/agent-shell-016-improvements-melpa)
-- `2025-10-12` [agent-shell 0.5 improvements](https://xenodium.com/agent-shell-0-5-improvements)
-- `2025-09-25` [Introducing Emacs agent-shell (powered by ACP)](https://xenodium.com/introducing-agent-shell)
-- `2025-09-14` [Introducing acp.el](https://xenodium.com/introducing-acpel)"))
-                           (substring welcome padding-start)))))
+        (shell-maker-write-output
+         :config shell-maker--config
+         :output (funcall (map-elt config :welcome-function)
+                          shell-maker--config)))
       ;; TODO: Remove all `new-deferred' code paths.
       ;; The value was removed from `agent-shell-session-strategy' in 0.55.1
       ;; (see `agent-shell--validate-session-strategy'), but the branches
