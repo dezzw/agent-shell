@@ -73,6 +73,7 @@
 (declare-function agent-shell-prompt-queue-resume "agent-shell-prompt-queue")
 (declare-function agent-shell-view-acp-logs "agent-shell")
 (declare-function agent-shell-view-traffic "agent-shell")
+(declare-function agent-shell-save-traffic "agent-shell")
 (declare-function agent-shell-next-permission-button "agent-shell")
 (declare-function agent-shell-other-buffer "agent-shell")
 (declare-function agent-shell-previous-permission-button "agent-shell")
@@ -1182,6 +1183,17 @@ buffer from the snapshot and switch to edit mode."
     (with-current-buffer shell-buffer
       (agent-shell-view-traffic))))
 
+(defun agent-shell-viewport-save-traffic ()
+  "Save agent shell traffic to a .traffic file and reveal it in `dired'."
+  (declare (modes agent-shell-viewport-view-mode
+                  agent-shell-viewport-edit-mode))
+  (interactive)
+  (agent-shell-viewport--ensure-buffer)
+  (let ((shell-buffer (or (agent-shell--current-shell)
+                          (user-error "Not in an agent-shell buffer"))))
+    (with-current-buffer shell-buffer
+      (agent-shell-save-traffic))))
+
 (defun agent-shell-viewport-view-acp-logs ()
   "View agent shell ACP logs buffer."
   (declare (modes agent-shell-viewport-view-mode
@@ -1422,6 +1434,8 @@ VIEWPORT-BUFFER is the viewport buffer to check."
                       agent-shell-viewport-view-mode-map
                       '(((:function . agent-shell-viewport-view-traffic)
                          (:description . "View traffic"))
+                        ((:function . agent-shell-viewport-save-traffic)
+                         (:description . "Save traffic"))
                         ((:function . agent-shell-viewport-view-acp-logs)
                          (:description . "View logs"))
                         ((:function . agent-shell-viewport-copy-session-id)

@@ -6643,6 +6643,22 @@ Return file path of the generated SVG."
       (error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
     (pop-to-buffer traffic-buffer)))
 
+(defun agent-shell-save-traffic ()
+  "Save agent shell traffic to a .traffic file and reveal it in `dired'."
+  (declare (modes agent-shell-mode))
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (error "Not in a shell"))
+  (when-let* ((shell-directory default-directory)
+              (traffic-file
+               (with-current-buffer (acp-traffic-buffer :client (map-elt (agent-shell--state) :client))
+                 (when (= (buffer-size) 0)
+                   (error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
+                 (let ((default-directory shell-directory))
+                   (call-interactively #'acp-traffic-save-to))))
+              ((file-exists-p traffic-file)))
+    (dired-jump t traffic-file)))
+
 (defun agent-shell-view-acp-logs ()
   "View agent shell ACP logs buffer."
   (declare (modes agent-shell-mode))

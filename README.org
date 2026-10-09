@@ -1363,6 +1363,7 @@ always go to Evil modes if you need to with ~C-z~).
 |                                                       | agent-shell-restart                                     | Clear conversation by restarting the agent shell in the same project.         |
 |                                                       | agent-shell-resume-session                              | Resume an existing agent session by SESSION-ID.                               |
 |                                                       | agent-shell-run-all-tests                               | Run all agent-shell tests in batch mode.                                      |
+|                                                       | agent-shell-save-traffic                                | Save agent shell traffic to a .traffic file and reveal it in `dired'.         |
 | M-r                                                   | agent-shell-search-history                              | Search previous input history.                                                |
 |                                                       | agent-shell-send-clipboard-image                        | Paste clipboard image and insert it into `agent-shell'.                       |
 |                                                       | agent-shell-send-clipboard-image-to                     | Like `agent-shell-send-clipboard-image' but prompt for which shell to use.    |
@@ -1434,6 +1435,7 @@ always go to Evil modes if you need to with ~C-z~).
 |                                                       | agent-shell-viewport-reply-continue                     | Reply with "continue" and send immediately.                                   |
 |                                                       | agent-shell-viewport-reply-more                         | Reply with "more" and send immediately.                                       |
 |                                                       | agent-shell-viewport-reply-yes                          | Reply with "yes" and send immediately.                                        |
+|                                                       | agent-shell-viewport-save-traffic                       | Save agent shell traffic to a .traffic file and reveal it in `dired'.         |
 |                                                       | agent-shell-viewport-search-history                     | Search prompt history, select, and insert into compose buffer.                |
 |                                                       | agent-shell-viewport-set-session-mode                   | Set session mode.                                                             |
 |                                                       | agent-shell-viewport-set-session-model                  | Set session model.                                                            |
@@ -1515,7 +1517,7 @@ For example, here's what a [[https://agentclientprotocol.com/protocol/schema#ses
 
 [[file:traffic.png]]
 
-Sometimes including a traffic screenshot in an issue is enough. Other times including the full traffic is needed. From the traffic viewer, you can =M-x acp-traffic-save-to= to save as =.traffic=.
+Sometimes including a traffic screenshot in an issue is enough. Other times including the full traffic is needed. From the shell or viewport, you can =M-x agent-shell-save-traffic= (or =M-x agent-shell-viewport-save-traffic=) to save as =.traffic=. From the traffic viewer itself, =M-x acp-traffic-save-to= does the same.
 
 ** Where should I file bug or feature request?
 
