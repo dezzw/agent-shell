@@ -1107,6 +1107,7 @@ always go to Evil modes if you need to with ~C-z~).
 | agent-shell-busy-indicator-frames             | Frames for the busy indicator animation.                                        |
 | agent-shell-busy-submit-default-function      | Function deciding what submitting while the agent is working does.              |
 | agent-shell-busy-submit-override-function     | Function M-x agent-shell-submit-override submits through.                       |
+| agent-shell-chat-label-function               | Function returning a chat label ("Me" or the agent's name).                     |
 | agent-shell-chat-mode-enabled                 | Whether a new agent shell enables ‘agent-shell-chat-mode’ by default.           |
 | agent-shell-chat-mode-hook                    | Hook run after entering or leaving ‘agent-shell-chat-mode’.                     |
 | agent-shell-cline-acp-command                 | Command and parameters for the Cline agent client.                              |
