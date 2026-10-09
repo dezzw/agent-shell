@@ -5086,14 +5086,7 @@ own banner."
      (agent-shell-markdown-convert
       "- `2026-09-22` [agent-shell 0.78 updates](https://xenodium.com/agent-shell-0-78-updates)
 - `2026-08-15` [agent-shell 0.73 updates](https://xenodium.com/agent-shell-0-73-updates)
-- `2026-07-22` [agent-shell 0.63 updates](https://xenodium.com/agent-shell-0-63-updates)
-- `2026-06-11` [agent-shell 0.55 updates](https://xenodium.com/agent-shell-0-55-updates)
-- `2026-03-12` [agent-shell 0.47 updates](https://xenodium.com/agent-shell-0-47-1-updates)
-- `2025-12-20` [agent-shell 0.25 updates](https://xenodium.com/agent-shell-0-25-updates)
-- `2025-11-04` [agent-shell 0.17 improvements + MELPA](https://xenodium.com/agent-shell-016-improvements-melpa)
-- `2025-10-12` [agent-shell 0.5 improvements](https://xenodium.com/agent-shell-0-5-improvements)
-- `2025-09-25` [Introducing Emacs agent-shell (powered by ACP)](https://xenodium.com/introducing-agent-shell)
-- `2025-09-14` [Introducing acp.el](https://xenodium.com/introducing-acpel)"))
+- `2026-07-22` [agent-shell 0.63 updates](https://xenodium.com/agent-shell-0-63-updates)"))
    "\n\n"))
 
 (cl-defun agent-shell--start (&key config no-focus new-session session-strategy session-id fork-session-id outgoing-request-decorator)
