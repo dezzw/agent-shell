@@ -4,10 +4,10 @@
 
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
-;; Version: 0.87.1
-;; Package-Requires: ((emacs "29.1") (shell-maker "0.97.5") (acp "0.15.1"))
+;; Version: 0.87.2
+;; Package-Requires: ((emacs "29.1") (shell-maker "0.97.5") (acp "0.16.1"))
 
-(defconst agent-shell--version "0.87.1")
+(defconst agent-shell--version "0.87.2")
 
 ;; Minimum dependency versions, as declared in the `Package-Requires'
 ;; header above.  Package managers that resolve versions enforce the
@@ -16,7 +16,7 @@
 ;; in sync with it.
 (defconst agent-shell--shell-maker-minimum-version "0.97.5")
 
-(defconst agent-shell--acp-minimum-version "0.15.1")
+(defconst agent-shell--acp-minimum-version "0.16.1")
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
