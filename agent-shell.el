@@ -5056,17 +5056,14 @@ FUNCTION should be a function accepting keyword arguments (&key ...)."
                    (list (car pair) (cdr pair)))
                  alist)))
 
-(defun agent-shell-welcome-message (config)
-  "Return welcome text for shell-maker CONFIG.
+(defun agent-shell-welcome-message (_config)
+  "Return welcome text shared by all agents.
 
-Shows how to get help, how to support the project and the latest
-news.  Agents' `:welcome-function' typically place it below their
-own banner."
+Shows how to get help, the latest news and how to support the
+project.  Agents' `:welcome-function' typically place it below their
+own banner, passing along their shell-maker config."
   (concat
-   "     Welcome to "
-   (propertize (shell-maker-config-name config)
-               'font-lock-face 'font-lock-comment-face)
-   " shell\n\n\n"
+   "       WELCOME\n\n"
    "       Type " (propertize "help" 'font-lock-face 'italic) " and press "
    (mapconcat (lambda (keys)
                 (propertize (key-description keys)
@@ -5074,12 +5071,6 @@ own banner."
               (where-is-internal #'agent-shell-submit agent-shell-mode-map)
               " or ")
    " for details.\n\n"
-   "       Like this package? Consider ✨"
-   (shell-maker-make-button-text "sponsoring"
-                                 (lambda ()
-                                   (browse-url "https://github.com/sponsors/xenodium")
-                                   (message "Thank you!")))
-   "✨\n\n"
    "       NEWS\n\n"
    ;; Align bullets with the welcome text.
    (let ((agent-shell-markdown-list-line-prefix (make-string 7 ?\s)))
@@ -5087,7 +5078,16 @@ own banner."
       "- `2026-09-22` [agent-shell 0.78 updates](https://xenodium.com/agent-shell-0-78-updates)
 - `2026-08-15` [agent-shell 0.73 updates](https://xenodium.com/agent-shell-0-73-updates)
 - `2026-07-22` [agent-shell 0.63 updates](https://xenodium.com/agent-shell-0-63-updates)"))
-   "\n\n"))
+   "\n\n"
+   "       FUNDING\n\n"
+   "       Is agent-shell fundamental to your workflow?\n"
+   "       It can only survive if its users help fund it.\n\n"
+   "       Consider ✨"
+   (shell-maker-make-button-text "sponsoring"
+                                 (lambda ()
+                                   (browse-url "https://github.com/sponsors/xenodium")
+                                   (message "Thank you!")))
+   "✨ (or ask your employer to).\n\n"))
 
 (cl-defun agent-shell--start (&key config no-focus new-session session-strategy session-id fork-session-id outgoing-request-decorator)
   "Programmatically start shell with CONFIG.
