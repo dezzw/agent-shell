@@ -31,7 +31,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
@@ -153,7 +152,7 @@ Uses `agent-shell-goose-authentication' for authentication configuration."
 (defun agent-shell-goose--welcome-message (config)
   "Return Goose welcome message using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-goose--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"
