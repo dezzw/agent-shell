@@ -90,6 +90,7 @@
 (require 'agent-shell-mistral)
 (require 'agent-shell-omp)
 (require 'agent-shell-openai)
+(require 'agent-shell-openclaw)
 (require 'agent-shell-opencode)
 (require 'agent-shell-pi)
 (require 'agent-shell-project)
@@ -828,6 +829,7 @@ example filtering them.  See `agent-shell-agent-configs'."
         #'agent-shell-kiro-make-config
         #'agent-shell-mistral-make-config
         #'agent-shell-omp-make-agent-config
+        #'agent-shell-openclaw-make-agent-config
         #'agent-shell-opencode-make-agent-config
         #'agent-shell-pi-make-agent-config
         #'agent-shell-qoder-make-agent-config
@@ -916,6 +918,7 @@ behavior explicitly."
                  (const :tag "Kimi" kimi)
                  (const :tag "Kiro" kiro)
                  (const :tag "Mistral" le-chat)
+                 (const :tag "OpenClaw" openclaw)
                  (const :tag "OpenCode" opencode)
                  (const :tag "Pi" pi)
                  (const :tag "Qoder" qoder)
