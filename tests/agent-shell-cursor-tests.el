@@ -149,6 +149,17 @@
                    '((method . "session/request")
                      (params (foo . "bar")))))))
 
+(ert-deftest agent-shell-cursor--outgoing-request-decorator-test ()
+  "Test Cursor decorator advertises parameterized model picker on initialize."
+  (let ((request (acp-make-initialize-request :protocol-version 1)))
+    (agent-shell-cursor--outgoing-request-decorator request)
+    (should (equal (map-nested-elt request
+                                   '(:params clientCapabilities _meta
+                                     parameterizedModelPicker))
+                   t))
+    (let ((other (acp-make-session-new-request :cwd "/tmp")))
+      (should (eq (agent-shell-cursor--outgoing-request-decorator other) other)))))
+
 (ert-deftest agent-shell--adapt-notification-cursor-integration-test ()
   "Test `agent-shell--adapt-notification' with Cursor config."
   (let* ((config (agent-shell-cursor-make-agent-config))
