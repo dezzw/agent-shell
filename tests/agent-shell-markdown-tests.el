@@ -2074,6 +2074,23 @@ print(\"hi\")
       (should-not highlighted-mode-hook-ran)
       (should observer-hook-ran))))
 
+(ert-deftest agent-shell-markdown-source-block-fontifies-last-diff-line ()
+  "A diff block's last line gets diff faces like the lines before it."
+  (let ((rendered (agent-shell-markdown-convert "```diff
++ first
++ last
+```")))
+    (dolist (line '("+ first" "+ last"))
+      (let ((pos (string-search line rendered)))
+        (should (memq 'diff-indicator-added
+                      (ensure-list (get-text-property pos 'face rendered))))
+        (should (memq 'diff-added
+                      (ensure-list (get-text-property (+ pos 2) 'face rendered))))))))
+
+(ert-deftest agent-shell-markdown-highlight-code-keeps-code-length ()
+  "Highlighting returns exactly CODE's characters, with no added newline."
+  (should (equal (agent-shell-markdown--highlight-code "+ a" "diff") "+ a")))
+
 (ert-deftest agent-shell-markdown-convert-source-block-body-tagged ()
   ;; Body chars carry `agent-shell-markdown-frozen t' so subsequent calls
   ;; treat them as an avoid-range (streaming-safe).  Rendered output
