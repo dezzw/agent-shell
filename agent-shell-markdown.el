@@ -4408,12 +4408,16 @@ unchanged."
   (if-let* ((mode (agent-shell-markdown--resolve-lang-mode lang))
             ((fboundp mode)))
       (with-temp-buffer
-        (insert code)
+        ;; Fontify with a trailing newline: the fenced body stops before
+        ;; the `\n' ahead of the closing fence, and keywords that match
+        ;; through end of line (e.g. `diff-mode''s `+'/`-' lines) would
+        ;; otherwise skip the last line.  The newline is dropped below.
+        (insert code "\n")
         (let ((inhibit-message t))
           (delay-mode-hooks
             (funcall mode)
             (font-lock-ensure)))
-        (buffer-string))
+        (buffer-substring (point-min) (+ (point-min) (length code))))
     code))
 
 (defun agent-shell-markdown--resolve-lang-mode (lang)
