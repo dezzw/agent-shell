@@ -2781,22 +2781,24 @@ fast: requesting on... done"))
 
 (ert-deftest agent-shell--make-transcript-frontmatter-test ()
   "Test `agent-shell--make-transcript-frontmatter' function."
-  ;; All fields present.
+  ;; All fields present.  Times render as unquoted YAML timestamps.
   (should (equal (agent-shell--make-transcript-frontmatter
-                  '(("agent" . "Claude")
-                    ("started" . "2025-11-02T18:17:41-05:00")
+                  `(("agent" . "Claude")
+                    ("started" . ,(encode-time '(41 17 18 2 11 2025 nil nil -18000)))
                     ("working_directory" . "/home/user/project/")
                     ("session_id" . "eb5b6105")
                     ("model" . "opus")))
-                 "---
+                 (format "---
 agent: \"Claude\"
-started: \"2025-11-02T18:17:41-05:00\"
+started: %s
 working_directory: \"/home/user/project/\"
 session_id: \"eb5b6105\"
 model: \"opus\"
 ---
 
-"))
+"
+                         (format-time-string "%FT%T%:z"
+                                             (encode-time '(41 17 18 2 11 2025 nil nil -18000))))))
   ;; Nil values omit their key entirely.
   (should (equal (agent-shell--make-transcript-frontmatter
                   '(("agent" . "Claude")

@@ -11639,22 +11639,24 @@ For example:
 (defun agent-shell--make-transcript-frontmatter (fields)
   "Return FIELDS rendered as a YAML frontmatter block.
 
-FIELDS is an alist mapping string keys to string values.  Values are
-emitted as double-quoted YAML scalars.  Fields with nil values are
-skipped, so optional fields can be passed as is.
+FIELDS is an alist mapping string keys to string or Lisp time values.
+Strings are emitted as double-quoted YAML scalars.  Times are emitted
+unquoted in ISO 8601, so YAML reads them as timestamps.  Fields with
+nil values are skipped, so optional fields can be passed as is.
 
 For example:
 
   (agent-shell--make-transcript-frontmatter
-   \='((\"agent\" . \"Claude\")
+   \=`((\"agent\" . \"Claude\")
+     (\"started\" . ,(current-time))
      (\"model\" . nil)))
 
 returns:
 
   ---
   agent: \"Claude\"
-  ---
-"
+  started: 2025-11-02T18:17:41-05:00
+  ---"
   (format "---
 %s
 ---
@@ -11662,7 +11664,10 @@ returns:
 "
           (string-join
            (map-apply (lambda (key value)
-                        (format "%s: %s" key (json-encode-string value)))
+                        (format "%s: %s" key
+                                (if (stringp value)
+                                    (json-encode-string value)
+                                  (format-time-string "%FT%T%:z" value))))
                       (map-filter (lambda (_key value) value) fields))
            "\n")))
 
@@ -11687,7 +11692,7 @@ disable the transcript for this shell and return nil."
                       (list (cons "agent" (or (map-nested-elt agent-shell--state '(:agent-config :mode-line-name))
                                               (map-nested-elt agent-shell--state '(:agent-config :buffer-name))
                                               "Unknown Agent"))
-                            (cons "started" (format-time-string "%FT%T%:z"))
+                            (cons "started" (current-time))
                             (cons "working_directory" (agent-shell-cwd))
                             (cons "session_id" (map-nested-elt agent-shell--state '(:session :id)))
                             (cons "model" (map-nested-elt agent-shell--state '(:session :model-id)))))
