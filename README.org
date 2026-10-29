@@ -19,32 +19,32 @@ Thank you!
 
 =agent-shell= brings your favorite AI agents to [[https://www.gnu.org/software/emacs/][Emacs]], keeping you at home: familiar buffers and bindings, no terminal emulation. All powered by ACP, the [[https://agentclientprotocol.com][Agent Client Protocol]].
 
-Works with 23 agents today, and any other that speaks ACP:
+Works with 24 agents today, and any other that speaks ACP:
 
+- [[https://antigravity.google/docs/ide/extensions][Antigravity]] (Google)
+- [[https://docs.augmentcode.com/cli/overview][Auggie]]
 - [[https://code.claude.com/docs/en/overview][Claude Agent]] (Anthropic)
+- [[https://docs.cline.bot/usage/acp][Cline]]
+- [[https://www.codebuddy.ai][CodeBuddy]]
 - [[https://github.com/agentclientprotocol/codex-acp][Codex]] (OpenAI)
+- [[https://cursor.com/docs/cli][Cursor]]
+- [[https://github.com/deepseek-ai/deepseek-harness][DeepSeek Harness]]
+- [[https://factory.ai][Factory Droid]]
 - [[https://github.com/google-gemini/gemini-cli][Gemini CLI]] (Google)
+- [[https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server][GitHub Copilot]]
 - [[https://goose-docs.ai/docs/getting-started/installation][Goose]]
 - [[https://docs.x.ai/docs/overview][Grok Build]] (xAI)
-- [[https://cursor.com/docs/cli][Cursor]]
-- [[https://docs.cline.bot/usage/acp][Cline]]
-- [[https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server][GitHub Copilot]]
+- [[https://github.com/NousResearch/hermes-agent][Hermes]]
+- [[https://junie.jetbrains.com/docs/junie-cli-acp.html][Junie]] (JetBrains)
 - [[https://www.kimi.com/code][Kimi Code CLI]]
-- [[https://www.codebuddy.ai][CodeBuddy]]
-- [[https://github.com/deepseek-ai/deepseek-harness][DeepSeek Harness]]
 - [[https://kiro.dev][Kiro CLI]]
+- [[https://github.com/mistralai/mistral-vibe][Mistral Vibe]]
+- [[https://github.com/can1357/oh-my-pi][Oh My Pi]]
+- [[https://openclaw.ai][OpenClaw]]
+- [[https://opencode.ai][OpenCode]]
+- [[https://github.com/svkozak/pi-acp][Pi]]
 - [[https://qoder.com][Qoder CLI]]
 - [[https://github.com/QwenLM/qwen-code][Qwen Code]]
-- [[https://docs.augmentcode.com/cli/overview][Auggie]]
-- [[https://github.com/mistralai/mistral-vibe][Mistral Vibe]]
-- [[https://factory.ai][Factory Droid]]
-- [[https://github.com/svkozak/pi-acp][Pi]]
-- [[https://github.com/can1357/oh-my-pi][Oh My Pi]]
-- [[https://github.com/NousResearch/hermes-agent][Hermes]]
-- [[https://opencode.ai][OpenCode]]
-- [[https://openclaw.ai][OpenClaw]]
-- [[https://antigravity.google/docs/ide/extensions][Antigravity]] (Google)
-- [[https://junie.jetbrains.com/docs/junie-cli-acp.html][Junie]] (JetBrains)
 
 [[https://www.youtube.com/watch?v=R2Ucr3amgGg][agent-shell - YouTube]]
 
