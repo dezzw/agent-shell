@@ -6701,6 +6701,44 @@ Major-mode changes keep `buffer-undo-list', so each view page's
             (should (string-empty-p (buffer-string)))))
       (kill-buffer viewport-buffer))))
 
+(ert-deftest agent-shell-viewport--show-buffer-displays-after-populating-test ()
+  "The display action sees the viewport's compose content, not stale content.
+
+Display actions sizing the window to its buffer (e.g. a `window-height'
+function calling `fit-window-to-buffer') otherwise measure a page left
+over from view mode."
+  (let* ((agent-shell-file-completion-enabled nil)
+         (shell-buffer (generate-new-buffer "*agent-shell display test*"))
+         (viewport-buffer (generate-new-buffer "*agent-shell display test* [viewport]"))
+         (seen nil)
+         (agent-shell-display-action
+          `(display-buffer-at-bottom
+            (window-height
+             . ,(lambda (window)
+                  (with-current-buffer (window-buffer window)
+                    (setq seen `((:mode . ,major-mode)
+                                 (:content . ,(buffer-string))))))))))
+    (unwind-protect
+        (cl-letf (((symbol-function 'agent-shell-viewport--buffer)
+                   (lambda (&rest _) viewport-buffer))
+                  ((symbol-function 'agent-shell-viewport--busy-p)
+                   (lambda (&rest _) nil))
+                  ((symbol-function 'agent-shell-viewport--position)
+                   (lambda (&rest _) nil))
+                  ((symbol-function 'agent-shell-viewport--update-header)
+                   (lambda (&rest _))))
+          (with-current-buffer viewport-buffer
+            (agent-shell-viewport-view-mode)
+            (agent-shell-viewport--initialize :prompt "old prompt\n" :response "old response"))
+          (save-window-excursion
+            (agent-shell-viewport--show-buffer :append "some context"
+                                               :shell-buffer shell-buffer))
+          (should (eq (map-elt seen :mode) 'agent-shell-viewport-edit-mode))
+          (should (string-match-p "some context" (map-elt seen :content)))
+          (should-not (string-match-p "old response" (map-elt seen :content))))
+      (kill-buffer viewport-buffer)
+      (kill-buffer shell-buffer))))
+
 (ert-deftest agent-shell--refresh-session-title-skips-when-list-unsupported ()
   "Test `agent-shell--refresh-session-title' sends no request without `list'.
 
