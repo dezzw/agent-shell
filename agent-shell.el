@@ -593,6 +593,10 @@ then dismisses the compose window, restoring the previous window layout.
 Prompts are sent without switching to watch the response."
   :type 'boolean
   :group 'agent-shell)
+;; `agent-shell-prompt-compose' sets this buffer-locally in the viewport,
+;; which transitions between major modes.  Make it permanent-local so
+;; transitioning does not reset it.
+(put 'agent-shell-viewport-dismiss-on-send 'permanent-local t)
 
 (defcustom agent-shell-embed-file-size-limit 102400
   "Maximum file size in bytes for embedding with ContentBlock::Resource.
