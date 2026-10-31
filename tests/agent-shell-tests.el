@@ -905,6 +905,37 @@ block -- covering the dispatch path, not just the helper in isolation."
         (should-not (map-elt state :stream-render-pending))
         (should-not (map-elt state :stream-render-timer))))))
 
+(ert-deftest agent-shell--stream-render-flushes-on-session-push-end-test ()
+  "A pushed turn's pending text renders before the next turn starts.
+
+`session_push_end' finishes the turn and dispatches any queued prompt,
+which bumps `:request-count'.  A batch left pending until then would
+render under the queued prompt's namespace, after its text."
+  (with-temp-buffer
+    (let ((agent-shell--stream-render-interval 30)
+          (state (agent-shell--make-state :buffer (current-buffer)))
+          (rendered nil))
+      (map-put! state :request-count 1)
+      (cl-letf (((symbol-function 'agent-shell--update-fragment)
+                 (lambda (&rest _)
+                   (push (map-elt state :request-count) rendered)))
+                ((symbol-function 'agent-shell-experimental--on-session-push-end)
+                 (lambda (&rest _)
+                   (should rendered)
+                   ;; Stand in for the queued prompt `on-finished' dispatches.
+                   (map-put! state :request-count 2))))
+        (agent-shell--update-streamed-fragment
+         :state state :block-id "a" :body "pushed answer")
+        (agent-shell--on-notification
+         :state state
+         :acp-notification '((method . "session/update")
+                             (params
+                              (update
+                               (sessionUpdate . "session_push_end")))))
+        (should (equal rendered '(1)))
+        (should-not (map-elt state :stream-render-pending))
+        (should-not (map-elt state :stream-render-timer))))))
+
 (ert-deftest agent-shell--on-notification-session-info-update-test ()
   "Test `session_info_update' updates the session title.
 

@@ -3847,6 +3847,9 @@ Clears STATE's `:expanded-activity-group'."
            ;; Note: This is session-level state, no need to set :last-entry-type
            nil)
           ((equal (map-nested-elt acp-notification '(params update sessionUpdate)) "session_push_end")
+           ;; Before the turn ends, or a queued prompt dispatched by
+           ;; `on-finished' takes over the pending chunk's namespace.
+           (agent-shell--flush-stream-render state)
            (agent-shell-experimental--on-session-push-end
             :state state
             :on-finished (lambda ()
