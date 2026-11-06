@@ -35,7 +35,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
@@ -113,7 +112,7 @@ Customize \\\\[customize-variable] `agent-shell-hermes-acp-command' for remote s
 (defun agent-shell-hermes--welcome-message (config)
   "Return Hermes welcome message using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-hermes--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"
