@@ -31,7 +31,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
@@ -123,20 +122,13 @@ The first element is the command name, and the rest are command parameters."
 This should be a list of environment variables to be used when
 starting the Claude client process.
 
-A value given as a function is resolved each time the agent starts,
-rather than when this variable is set.  See
-`agent-shell-make-environment-variables'.
-
 Example usage to set a custom Anthropic API base URL:
 
   (setq agent-shell-anthropic-claude-environment
         (`agent-shell-make-environment-variables'
          \"ANTHROPIC_BASE_URL\" \"https://api.moonshot.cn/anthropic/\"
          \"ANTHROPIC_MODEL\" \"moonshot-v1-auto\"))"
-  :type '(repeat (choice (string :tag "NAME=VALUE")
-                         (cons :tag "Resolved at agent start"
-                               (string :tag "Name")
-                               (function :tag "Value function"))))
+  :type '(repeat string)
   :group 'agent-shell)
 
 (defun agent-shell-anthropic-make-claude-code-config ()
@@ -230,7 +222,7 @@ additional environment variables."
 (defun agent-shell-anthropic--claude-code-welcome-message (config)
   "Return Claude Agent ASCII art as per own repo using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-anthropic--claude-code-ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"

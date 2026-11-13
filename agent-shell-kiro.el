@@ -28,7 +28,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
@@ -67,15 +66,8 @@ when starting a new shell."
   "Environment variables for the Kiro CLI client.
 
 This should be a list of environment variables to be used when
-starting the Kiro client process.
-
-A value given as a function is resolved each time the agent starts,
-rather than when this variable is set.  See
-`agent-shell-make-environment-variables'."
-  :type '(repeat (choice (string :tag "NAME=VALUE")
-                         (cons :tag "Resolved at agent start"
-                               (string :tag "Name")
-                               (function :tag "Value function"))))
+starting the Kiro client process."
+  :type '(repeat string)
   :group 'agent-shell)
 
 (defun agent-shell-kiro-make-config ()
@@ -117,7 +109,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-kiro--welcome-message (config)
   "Return Kiro ASCII art using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-kiro--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"

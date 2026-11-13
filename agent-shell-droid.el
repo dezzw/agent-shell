@@ -32,7 +32,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
@@ -116,20 +115,13 @@ The first element is the command name, and the rest are command parameters."
 This should be a list of environment variables to be used when
 starting the Droid client process.
 
-A value given as a function is resolved each time the agent starts,
-rather than when this variable is set.  See
-`agent-shell-make-environment-variables'.
-
 Example usage to set custom environment variables:
 
   (setq agent-shell-droid-environment
         (`agent-shell-make-environment-variables'
          \"MY_VAR\" \"some-value\"
          \"MY_OTHER_VAR\" \"another-value\"))"
-  :type '(repeat (choice (string :tag "NAME=VALUE")
-                         (cons :tag "Resolved at agent start"
-                               (string :tag "Name")
-                               (function :tag "Value function"))))
+  :type '(repeat string)
   :group 'agent-shell)
 
 (defun agent-shell-droid-make-agent-config ()
@@ -195,7 +187,7 @@ Uses `agent-shell-droid-authentication' for authentication configuration."
 (defun agent-shell-droid--welcome-message (config)
   "Return Factory Droid welcome message using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-droid--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"
