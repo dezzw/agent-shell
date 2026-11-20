@@ -19,8 +19,12 @@
 ;;
 ;; This file includes Google Antigravity-specific configurations.
 ;;
-;; Antigravity's CLI ("agy") includes an ACP server via "agy acp".
-;; See https://antigravity.google/docs/ide/extensions/acp
+;; Antigravity ships as a prebuilt "agy_acp_server" binary (no npm/pip
+;; package), distributed per-platform.  Download and unpack the archive
+;; for your platform from
+;; https://github.com/agentclientprotocol/registry/tree/main/antigravity-acp
+;; and make sure the resulting executable is on `exec-path' (or set
+;; `agent-shell-antigravity-acp-command' to an absolute path).
 ;;
 
 ;;; Code:
@@ -31,19 +35,25 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--dwim "agent-shell")
 
 (defcustom agent-shell-antigravity-acp-command
-  '("agy" "acp")
+  (cond ((memq system-type '(windows-nt ms-dos))
+         '("agy_acp_server.exe"))
+        ((eq system-type 'darwin)
+         '("agy_acp_server.par"))
+        (t
+         '("agy_acp_server.par" "--uid=")))
   "Command and parameters for the Antigravity ACP server.
 
 The first element is the command name, and the rest are command
-parameters.  Set the command to an absolute path if \"agy\" isn't on
-variable `exec-path'."
+parameters.  Defaults follow the per-platform distribution metadata at
+https://github.com/agentclientprotocol/registry/tree/main/antigravity-acp
+\(Linux additionally passes \"--uid=\").  Set this to an absolute path
+if the binary isn't on variable `exec-path'."
   :type '(repeat string)
   :group 'agent-shell)
 
@@ -52,15 +62,8 @@ variable `exec-path'."
   "Environment variables for the Antigravity ACP server.
 
 This should be a list of environment variables to be used when
-starting the Antigravity agent process.
-
-A value given as a function is resolved each time the agent starts,
-rather than when this variable is set.  See
-`agent-shell-make-environment-variables'."
-  :type '(repeat (choice (string :tag "NAME=VALUE")
-                         (cons :tag "Resolved at agent start"
-                               (string :tag "Name")
-                               (function :tag "Value function"))))
+starting the Antigravity agent process."
+  :type '(repeat string)
   :group 'agent-shell)
 
 (cl-defun agent-shell-antigravity-make-authentication (&key login api-key business agent-platform none)
@@ -135,27 +138,6 @@ For no authentication (when managed externally):
         (t
          nil)))
 
-(defcustom agent-shell-antigravity-default-config-options
-  nil
-  "Default Antigravity config options, applied at session start.
-
-An alist of (OPTION . VALUE).  Both are the ids listed under
-\"Available config options\" when starting a new shell, so whatever
-Antigravity advertises can be set here without further `agent-shell'
-changes.  OPTION also accepts the ACP category names (\"model\",
-\"mode\") for options carrying one.
-
-For example:
-
-  (setq agent-shell-antigravity-default-config-options
-        \\='((\"model\" . \"gemini-2.5-pro\")
-          (\"mode\" . \"auto\")))
-
-Options are applied in the order listed.  An option or value
-Antigravity does not offer is reported and skipped."
-  :type '(alist :key-type string :value-type string)
-  :group 'agent-shell)
-
 (defun agent-shell-antigravity-make-agent-config ()
   "Create an Antigravity agent configuration.
 
@@ -172,8 +154,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :authenticate-request-maker #'agent-shell-antigravity--authenticate-request
    :client-maker (lambda (buffer)
                    (agent-shell-antigravity-make-client :buffer buffer))
-   :default-config-options (lambda () agent-shell-antigravity-default-config-options)
-   :install-instructions "See https://antigravity.google/docs/ide/extensions/acp for installation."))
+   :install-instructions "See https://antigravity.google/docs/ide/extensions for installation."))
 
 (defun agent-shell-antigravity--authenticate-request ()
   "Return the `authenticate' request for the configured method.
@@ -231,7 +212,7 @@ Uses `agent-shell-antigravity-authentication' for authentication configuration."
 (defun agent-shell-antigravity--welcome-message (config)
   "Return Antigravity ASCII art using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-antigravity--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"

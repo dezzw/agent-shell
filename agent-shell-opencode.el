@@ -31,7 +31,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
@@ -87,7 +86,7 @@ when starting a new shell."
 
 An alist of (OPTION . VALUE).  Both are the ids listed under
 \"Available config options\" when starting a new shell, so whatever
-OpenCode advertises can be set here without further `agent-shell'
+OpenCode advertises can be set here without further agent-shell
 changes.  OPTION also accepts the ACP category names (\"model\",
 \"mode\", \"thought_level\") for options carrying one.
 
@@ -130,20 +129,13 @@ The first element is the command name, and the rest are command parameters."
 This should be a list of environment variables to be used when
 starting the OpenCode client process.
 
-A value given as a function is resolved each time the agent starts,
-rather than when this variable is set.  See
-`agent-shell-make-environment-variables'.
-
 Example usage to set custom environment variables:
 
   (setq agent-shell-opencode-environment
         (`agent-shell-make-environment-variables'
          \"MY_VAR\" \"some-value\"
          \"MY_OTHER_VAR\" \"another-value\"))"
-  :type '(repeat (choice (string :tag "NAME=VALUE")
-                         (cons :tag "Resolved at agent start"
-                               (string :tag "Name")
-                               (function :tag "Value function"))))
+  :type '(repeat string)
   :group 'agent-shell)
 
 (defun agent-shell-opencode-make-agent-config ()
@@ -207,7 +199,7 @@ Uses `agent-shell-opencode-authentication' for authentication configuration."
 (defun agent-shell-opencode--welcome-message (config)
   "Return OpenCode welcome message using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-opencode--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"

@@ -45,14 +45,12 @@ Returns an active message alist for use with
   "Hide ACTIVE-MESSAGE.
 
 ACTIVE-MESSAGE is the value previously returned by
-`agent-shell-active-message-show'.  Hiding it again does nothing,
-so it is safe to call from several events."
+`agent-shell-active-message-show'."
   (when active-message
     (when-let* ((timer (map-elt active-message :timer)))
       (when (timerp timer)
         (cancel-timer timer)))
     (when-let* ((reporter (map-elt active-message :reporter)))
-      (map-put! active-message :reporter nil)
       (progress-reporter-done reporter)
       (message nil))))
 

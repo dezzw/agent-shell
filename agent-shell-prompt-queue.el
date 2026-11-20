@@ -32,14 +32,11 @@
 (require 'map)
 (require 'ring)
 (require 'agent-shell-faces)
-(require 'agent-shell-prompt)
 (eval-when-compile (require 'cl-lib))
 
 (declare-function agent-shell--insert-to-shell-buffer "agent-shell")
 (declare-function agent-shell--update-fragment "agent-shell")
 (declare-function agent-shell--shell-buffer "agent-shell")
-(declare-function agent-shell-buffers "agent-shell")
-(declare-function agent-shell--display-buffer "agent-shell")
 (declare-function agent-shell--state "agent-shell")
 (declare-function agent-shell--echo "agent-shell")
 (declare-function agent-shell-status "agent-shell")
@@ -75,96 +72,21 @@ TODO: Remove after 2026-08-28."
            (list (cons :pending-prompts
                        (map-elt agent-shell--state :pending-requests))))))
 
-(defcustom agent-shell-prompt-queue-merge t
-  "Whether queued prompts are sent together as a single prompt.
-
-Prompts queued while a turn runs are typically follow-ups to the same
-instruction.  When non-nil, they are joined (separated by blank lines)
-and sent as one turn.  When nil, they are sent one turn each, in the
-order they were queued."
-  :type 'boolean
-  :group 'agent-shell)
-
 (cl-defun agent-shell--prompt-queue-process-next ()
-  "Submit the next pending prompt, or all of them merged into one.
-
-Merges every pending prompt into a single prompt when
-`agent-shell-prompt-queue-merge' is non-nil, otherwise takes just the
-first.
-
-For example, given:
-
-  :pending-prompts (\"just the filenames\" \"sorted by size\")
-
-submits:
-
-  just the filenames
-
-  sorted by size
-
-and leaves :pending-prompts empty.  With merging off, submits
-\"just the filenames\" and leaves (\"sorted by size\") pending."
+  "Process the next pending prompt from the queue if available."
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (agent-shell--prompt-queue-migrate)
   (when-let* ((pending (map-elt agent-shell--state :pending-prompts))
-              (count (if agent-shell-prompt-queue-merge
-                         (seq-length pending)
-                       1)))
-    (map-put! agent-shell--state :pending-prompts (seq-drop pending count))
-    ;; The turn just ended, so the persistent prompt may hold text the user
-    ;; started typing and has not submitted.  Submitting the queued prompt
-    ;; inserts at `point-max', which would put it ahead of that draft and
-    ;; send the two as one message.  Set the draft aside and type it back
-    ;; into the prompt the submission leaves behind.
-    (let ((draft (and agent-shell-persistent-prompt-enabled
-                      (agent-shell--take-prompt-input))))
-      (agent-shell--insert-to-shell-buffer
-       :text (string-join (seq-take pending count) "\n\n")
-       :submit t
-       :no-focus t)
-      (when draft
-        (goto-char (point-max))
-        (insert draft)))))
+              (next-prompt (car pending)))
+    (map-put! agent-shell--state :pending-prompts (cdr pending))
+    (agent-shell--insert-to-shell-buffer
+     :text next-prompt
+     :submit t
+     :no-focus t)))
 
-(defun agent-shell--prompt-queue-summary ()
-  "Return the pending prompts as a numbered list, headed by their count.
-
-Each prompt is shown by its first line, truncated to 80 columns.
-
-For example, given:
-
-  :pending-prompts (\"just the filenames\" \"sorted by size\")
-
-returns:
-
-  Pending prompts: 2
-
-    1: \"just the filenames\"
-    2: \"sorted by size\""
-  (agent-shell--prompt-queue-migrate)
-  (format "Pending prompts: %d
-
-%s"
-          (seq-length (map-elt agent-shell--state :pending-prompts))
-          (mapconcat
-           (lambda (idx-prompt)
-             (let ((idx (cdr idx-prompt))
-                   (first-line (car (split-string
-                                     (substring-no-properties (car idx-prompt))
-                                     "\n" t))))
-               (format "  %d: \"%s\""
-                       (1+ idx)
-                       (truncate-string-to-width first-line 80 nil nil "..."))))
-           (seq-map-indexed #'cons (map-elt agent-shell--state :pending-prompts))
-           "\n")))
-
-(cl-defun agent-shell--prompt-queue-display (&key skip-summary)
-  "Display how to manage pending prompts in the shell buffer, if any.
-
-Lists the pending prompts (see `agent-shell--prompt-queue-summary') ahead
-of the commands to resume or remove them, unless SKIP-SUMMARY is non-nil
-because the user has just seen that list elsewhere."
+(defun agent-shell--prompt-queue-display ()
+  "Display pending prompts in the shell buffer if queue is not empty."
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (agent-shell--prompt-queue-migrate)
@@ -173,13 +95,24 @@ because the user has just seen that list elsewhere."
      :state (agent-shell--state)
      :block-id (format "%s-pending-prompts"
                        (map-elt (agent-shell--state) :request-count))
-     :body (concat (unless skip-summary
-                     (concat (agent-shell--prompt-queue-summary) "\n\n"))
-                   "Resume: M-x agent-shell-prompt-queue-resume
+     :body (format "Pending prompts: %d
+
+%s
+
+Resume: M-x agent-shell-prompt-queue-resume
 Remove: M-x agent-shell-prompt-queue-remove
-")
-     :create-new t
-     :above-last-prompt (not (shell-maker-busy)))))
+"
+                   (seq-length (map-elt agent-shell--state :pending-prompts))
+                   (mapconcat
+                    (lambda (idx-prompt)
+                      (let ((idx (cdr idx-prompt))
+                            (first-line (car (split-string (car idx-prompt) "\n" t))))
+                        (format "  %d: \"%s\""
+                                (1+ idx)
+                                (truncate-string-to-width first-line 80 nil nil "..."))))
+                    (seq-map-indexed #'cons (map-elt agent-shell--state :pending-prompts))
+                    "\n"))
+     :create-new t)))
 
 (cl-defun agent-shell--prompt-queue-echo (&key active-prompt pending-prompts)
   "Message the in-progress prompt and PENDING-PROMPTS to the echo area.
@@ -215,9 +148,7 @@ messages:
                        'face (map-elt row :face))
            "  "
            (truncate-string-to-width
-            (or (car (split-string
-                      (substring-no-properties (map-elt row :prompt))
-                      "\n" t)) "")
+            (or (car (split-string (map-elt row :prompt) "\n" t)) "")
             available nil nil t)))
         (append
          (when active-prompt
@@ -235,13 +166,9 @@ messages:
   "Add PROMPT to the pending prompts queue and echo the resulting queue.
 
 The running prompt (the most recent `comint-input-ring' entry) is shown
-as \"active\" and the queued prompts, PROMPT included, as \"queued\".
-
-Signals a `user-error' when PROMPT is blank, as there is nothing to send."
+as \"active\" and the queued prompts, PROMPT included, as \"queued\"."
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
-  (when (string-empty-p (string-trim prompt))
-    (user-error "No prompt given"))
   (agent-shell--prompt-queue-migrate)
   (map-put! agent-shell--state :pending-prompts
             (append (map-elt agent-shell--state :pending-prompts)
@@ -331,149 +258,6 @@ commands when the agent has reported them."
        :state (agent-shell--state)
        :prompt prompt))))
 
-(defcustom agent-shell-busy-submit-default-function
-  #'agent-shell-busy-submit-queue
-  "Function deciding what submitting while the agent is working does.
-
-Called with one argument, the prompt string.  Applies wherever a prompt
-is submitted mid-turn: the shell prompt and the viewport's compose
-buffer alike.
-
-`agent-shell-busy-submit-override-function' is what
-\\[agent-shell-submit-override] reaches for instead, so setting one of
-these to each function makes both available without choosing."
-  :type '(choice (const :tag "Queue until the turn ends" agent-shell-busy-submit-queue)
-                 (const :tag "Steer into the running turn" agent-shell-busy-submit-steer)
-                 (function :tag "Custom function"))
-  :group 'agent-shell)
-
-(defcustom agent-shell-busy-submit-override-function
-  #'agent-shell-busy-submit-steer
-  "Function \\[agent-shell-submit-override] submits through.
-
-Called with one argument, the prompt string, and only when the agent is
-working.  Overrides `agent-shell-busy-submit-default-function' for that
-one submission.
-
-Reached from both surfaces: \\[agent-shell-submit-override] at the shell
-prompt, and \\[agent-shell-viewport-compose-send-override] in the
-viewport's compose buffer, which keeps its own prefix for keeping that
-buffer open."
-  :type '(choice (const :tag "Queue until the turn ends" agent-shell-busy-submit-queue)
-                 (const :tag "Steer into the running turn" agent-shell-busy-submit-steer)
-                 (function :tag "Custom function"))
-  :group 'agent-shell)
-
-(defun agent-shell-busy-submit-queue (prompt)
-  "Queue PROMPT and send it when the running turn ends.
-
-One of the functions `agent-shell-busy-submit-default-function' and
-`agent-shell-busy-submit-override-function' choose between."
-  (agent-shell--prompt-queue-enqueue :prompt prompt))
-
-(defun agent-shell-busy-submit-steer (prompt)
-  "Hand PROMPT to the running turn so the agent can change course.
-
-One of the functions `agent-shell-busy-submit-default-function' and
-`agent-shell-busy-submit-override-function' choose between.
-
-Queues PROMPT instead when the agent cannot steer, which not all can
-\(see `agent-shell-steering-supported-p'), so choosing this does not mean
-an error every turn.  `agent-shell-prompt-steer' is the command that
-refuses outright.
-
-Steering is not additive: see `agent-shell-prompt-steer' for what the
-agent may drop in order to change course."
-  (if (agent-shell-steering-supported-p)
-      (agent-shell-experimental--send-steering
-       :state (agent-shell--state)
-       :prompt prompt)
-    (agent-shell--prompt-queue-enqueue :prompt prompt)))
-
-(cl-defun agent-shell--busy-submit (&key prompt override)
-  "Submit PROMPT into the running turn, however the user has asked for.
-
-Routes through `agent-shell-busy-submit-override-function' when OVERRIDE,
-otherwise `agent-shell-busy-submit-default-function'.  Callers check that
-a turn is running: with none, there is nothing to queue behind or steer
-into, and the prompt is just submitted.
-
-Signals whatever the chosen function signals, so callers holding text the
-user typed can put it back."
-  (funcall (if override
-               agent-shell-busy-submit-override-function
-             agent-shell-busy-submit-default-function)
-           prompt))
-
-(defvar agent-shell-busy-submit-reroute-function
-  #'agent-shell-busy-submit-reroute-queue-to-steer
-  "Function \\[agent-shell-submit-override] calls at an empty prompt mid-turn.
-
-Sends a prompt already submitted while the agent is working some other
-way, typically one queued with \\[agent-shell-submit] when a steer was
-meant.  Taking a submission back depends on where
-`agent-shell-busy-submit-default-function' sent it, and sending it
-instead on `agent-shell-busy-submit-override-function', so only a
-function written for a given pair of them can do it.
-
-Called with no arguments and the shell buffer current, as the functions
-it reroutes between are, and does nothing for a pair it does not handle.
-Nil disables rerouting.")
-
-(defun agent-shell-busy-submit-reroute-queue-to-steer ()
-  "Steer the most recently queued prompt instead, once confirmed.
-
-Only handles `agent-shell-busy-submit-default-function' queueing and
-`agent-shell-busy-submit-override-function' steering, and does nothing
-for any other pair, as how other functions submit is unknown here.
-
-For example, given:
-
-  :pending-prompts (\"just the filenames\" \"sorted by size\")
-
-asks:
-
-  Steer \"sorted by size\" instead? (y or n)
-
-and when confirmed, steers it and leaves (\"just the filenames\")
-pending.  The prompt is put back in the queue if steering signals.
-
-The default `agent-shell-busy-submit-reroute-function'."
-  (when (and (eq agent-shell-busy-submit-default-function
-                 #'agent-shell-busy-submit-queue)
-             (eq agent-shell-busy-submit-override-function
-                 #'agent-shell-busy-submit-steer))
-    (agent-shell--prompt-queue-migrate)
-    (let ((prompt (car (last (map-elt agent-shell--state :pending-prompts))))
-          (sent nil))
-      (unless prompt
-        (user-error "No queued prompt"))
-      ;; `agent-shell-busy-submit-steer' would queue it right back.
-      (unless (agent-shell-steering-supported-p)
-        (user-error "This agent does not support steering"))
-      (unless (y-or-n-p
-               (format "Steer \"%s\" instead?"
-                       (truncate-string-to-width
-                        (car (split-string (substring-no-properties prompt) "\n" t))
-                        40 nil nil "...")))
-        (user-error "Steering cancelled"))
-      ;; The turn may have ended while the question was up, sending the
-      ;; queue along with it.
-      (unless (eq prompt (car (last (map-elt agent-shell--state :pending-prompts))))
-        (user-error "Queued prompt already sent"))
-      (unless (shell-maker-busy)
-        (user-error "No running turn to steer into"))
-      (map-put! agent-shell--state :pending-prompts
-                (butlast (map-elt agent-shell--state :pending-prompts)))
-      (unwind-protect
-          (progn
-            (agent-shell-busy-submit-steer prompt)
-            (setq sent t))
-        (unless sent
-          (map-put! agent-shell--state :pending-prompts
-                    (append (map-elt agent-shell--state :pending-prompts)
-                            (list prompt))))))))
-
 (defun agent-shell-prompt-queue (prompt)
   "Queue or immediately send a prompt depending on shell busy state.
 
@@ -481,11 +265,7 @@ Read PROMPT from the minibuffer and act on the current project's shell,
 resolving it via `agent-shell--shell-buffer' so this works even when
 invoked outside a shell buffer.  If the shell is busy, add PROMPT to the
 pending prompts queue.  Otherwise, submit it immediately.  Queued prompts
-are automatically sent when the current prompt completes, merged into a
-single prompt unless `agent-shell-prompt-queue-merge' is nil.  When it is
-cancelled instead, you are asked whether to continue with them.
-
-Always queues, ignoring `agent-shell-busy-submit-default-function'.
+will be automatically sent when the current prompt completes.
 
 To hand PROMPT to the agent mid-turn instead of waiting, see
 `agent-shell-prompt-steer'.
@@ -495,8 +275,6 @@ commands when the agent has reported them."
   (interactive
    (list (with-current-buffer (agent-shell--shell-buffer :no-create t)
            (agent-shell--prompt-queue-read))))
-  (when (string-empty-p (string-trim prompt))
-    (user-error "No prompt given"))
   (with-current-buffer (agent-shell--shell-buffer :no-create t)
     (if (shell-maker-busy)
         (agent-shell--prompt-queue-enqueue :prompt prompt)
@@ -535,8 +313,7 @@ either remove all or select a specific prompt to remove."
                       (seq-map-indexed
                        (lambda (prompt idx)
                          (cons (format "%d: %s" (1+ idx)
-                                       (truncate-string-to-width
-                                        (substring-no-properties prompt) 60 nil nil "..."))
+                                       (truncate-string-to-width prompt 60 nil nil "..."))
                                idx))
                        pending)))
             (selection (cdr (assoc (completing-read "Remove: " choices nil t) choices))))
@@ -556,91 +333,6 @@ either remove all or select a specific prompt to remove."
                               (length (map-elt agent-shell--state :pending-prompts))))
         (map-put! agent-shell--state :pending-prompts nil)
         (message "Removed all pending prompts")))))
-
-(defun agent-shell--prompt-queue-confirm-kill-buffer ()
-  "Return non-nil if the current shell may be killed.
-
-Queued prompts live only in the shell buffer, as the agent has not
-received them yet, so killing the shell loses them.  Asks for
-confirmation when any are queued, unless running in batch mode.
-
-For example, given:
-
-  :pending-prompts (\"just the filenames\" \"sorted by size\")
-
-asks:
-
-  2 prompts queued.  Kill anyway? (y or n)
-
-and with a single prompt queued:
-
-  1 prompt queued.  Kill anyway? (y or n)
-
-Added to `kill-buffer-query-functions' in shell buffers."
-  (let ((count (seq-length (map-elt agent-shell--state :pending-prompts))))
-    (or noninteractive
-        (zerop count)
-        (y-or-n-p (format "%d prompt%s queued.  Kill anyway?"
-                          count (if (= count 1) "" "s"))))))
-
-(defun agent-shell--prompt-queue-confirm-kill-emacs ()
-  "Return non-nil if Emacs may exit, given any shells with queued prompts.
-
-Asks once, however many shells hold queued prompts, unless running in
-batch mode.  The question names `agent-shell', as the user may not be
-looking at a shell when exiting, and a window lists the shells holding
-queued prompts while it is asked, much like `save-buffers-kill-emacs'
-does for live processes.  Declining keeps the window, where RET or a
-click on a shell name switches to that shell and \\`q' closes it.
-
-For example, given a shell named \"Claude @ proj\" with one queued
-prompt, lists:
-
-  Claude @ proj
-
-  Pending prompts: 1
-
-    1: \"just the filenames\"
-
-and asks:
-
-  agent-shell: Queued prompts not sent yet.  Exit anyway? (y or n)
-
-Added to `kill-emacs-query-functions' when a shell starts."
-  (let ((shells (seq-filter (lambda (shell-buffer)
-                              (map-elt (buffer-local-value 'agent-shell--state shell-buffer)
-                                       :pending-prompts))
-                            (agent-shell-buffers))))
-    (or noninteractive
-        (not shells)
-        (with-current-buffer-window
-         (get-buffer-create "*agent-shell queued prompts*")
-         '(display-buffer-at-bottom
-           (dedicated . t)
-           (window-height . fit-window-to-buffer)
-           (preserve-size . (nil . t)))
-         (lambda (window _value)
-           (let ((exit (with-selected-window window
-                         (y-or-n-p "agent-shell: Queued prompts not sent yet.  Exit anyway?"))))
-             ;; Kept on decline, so its shell names can be followed.
-             (when (and exit (window-live-p window))
-               (quit-restore-window window 'kill))
-             exit))
-         (special-mode)
-         (let ((inhibit-read-only t))
-           (insert (mapconcat (lambda (shell-buffer)
-                                (format "%s
-
-%s"
-                                        (buttonize (buffer-name shell-buffer)
-                                                   (lambda (_)
-                                                     (agent-shell--display-buffer shell-buffer))
-                                                   nil
-                                                   "Switch to shell")
-                                        (with-current-buffer shell-buffer
-                                          (agent-shell--prompt-queue-summary))))
-                              shells
-                              "\n\n")))))))
 
 (provide 'agent-shell-prompt-queue)
 
