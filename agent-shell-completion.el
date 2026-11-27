@@ -28,6 +28,7 @@
 
 (require 'comint)
 (require 'map)
+(require 'seq)
 (require 'agent-shell-project)
 
 (declare-function agent-shell--file-mention "agent-shell")
@@ -39,19 +40,7 @@
 (defvar agent-shell-prompt-queue-setup-minibuffer-functions)
 
 (defcustom agent-shell-file-completion-enabled t
-  "Non-nil pops project file completion as @ is typed.
-
-@ completion is available via \\[completion-at-point] either way.  This
-only decides whether typing @ pops it up automatically, which can be
-slow in large projects."
-  :type 'boolean
-  :group 'agent-shell)
-
-(defcustom agent-shell-command-completion-enabled t
-  "Non-nil pops agent command completion as / is typed.
-
-/ only pops at the start of the input, where agents recognize commands.
-/ completion is available via \\[completion-at-point] either way."
+  "Non-nil automatically enables file completion when starting shells."
   :type 'boolean
   :group 'agent-shell)
 
@@ -101,13 +90,9 @@ returns non-nil, while one typed after `hello ' (POSITION 36) returns
 nil."
   (= position (agent-shell-completion--input-start)))
 
-(defun agent-shell--capf-exit-with-space (_string status)
-  "Insert space after completion, if STATUS is `finished'.
-
-Other statuses mean the user may keep typing (`sole' and `exact' arrive
-from UIs like Corfu and Company while candidates still match)."
-  (when (eq status 'finished)
-    (insert " ")))
+(defun agent-shell--capf-exit-with-space (_string _status)
+  "Insert space after completion."
+  (insert " "))
 
 (defun agent-shell--capf-exit-with-file-mention (string status)
   "Rewrite the completed file STRING as an @ mention, then insert a space.
@@ -116,15 +101,13 @@ Completion inserts the candidate bare, so a path holding whitespace would
 be read as a mention ending at its first space.  Rewriting through
 `agent-shell--file-mention' quotes those paths.
 
-Only acts when STATUS is `finished', as with
-`agent-shell--capf-exit-with-space'.
+STATUS is handed to `agent-shell--capf-exit-with-space'.
 
 For example, completing at the end of a buffer holding
 
   \"@src/main.el\"    => \"@src/main.el \"
   \"@My Design.png\"  => \"@\\\"My Design.png\\\" \""
-  (when-let* (((eq status 'finished))
-              (start (- (point) (length string) 1))
+  (when-let* ((start (- (point) (length string) 1))
               ((eq (char-after start) ?@)))
     (delete-region start (point))
     (insert (agent-shell--file-mention string)))
@@ -169,8 +152,6 @@ buffer.  Returns nil if the override is set but its buffer is dead."
     (list (map-elt bounds :start) (map-elt bounds :end)
           (buffer-local-value 'agent-shell--project-files-cache source)
           :exclusive 'no
-          ;; Typing @ alone is enough for Company to pop candidates.
-          :company-prefix-length t
           :company-kind (lambda (f) (if (string-suffix-p "/" f) 'folder 'file))
           :exit-function #'agent-shell--capf-exit-with-file-mention)))
 
@@ -191,8 +172,6 @@ buffer.  Returns nil if the override is set but its buffer is dead."
     (list (map-elt bounds :start) (map-elt bounds :end)
           (mapcar #'car descriptions)
           :exclusive t
-          ;; Typing / alone is enough for Company to pop candidates.
-          :company-prefix-length t
           :annotation-function
           (lambda (name)
             (when-let* ((desc (map-elt descriptions name)))
@@ -202,8 +181,6 @@ buffer.  Returns nil if the override is set but its buffer is dead."
 
 (defun agent-shell--trigger-completion-at-point ()
   "Trigger completion when @ or / is typed at a word boundary.
-Each pops only when `agent-shell-file-completion-enabled' or
-`agent-shell-command-completion-enabled' respectively allows it.
 Only triggers when the character is at line start or after whitespace,
 preventing spurious completions mid-word or in paths.  / additionally
 requires being at the start of the input, where agents recognize
@@ -212,28 +189,11 @@ commands."
              (or (= (point) (1+ (line-beginning-position)))
                  (memq (char-before (1- (point))) '(?\s ?\t ?\n))))
     (cond
-     ((and (eq (char-before) ?@)
-           agent-shell-file-completion-enabled)
+     ((eq (char-before) ?@)
       (completion-at-point))
      ((and (eq (char-before) ?/)
-           agent-shell-command-completion-enabled
            (agent-shell--command-completion-at-point))
       (completion-at-point)))))
-
-(defun agent-shell-completion--setup ()
-  "Offer @ and / completion via `completion-at-point' in the current buffer.
-
-Also offers it while reading queued prompts.  Popping completion as @
-or / are typed is left to `agent-shell-completion-mode', enabled here
-unless `agent-shell-file-completion-enabled' and
-`agent-shell-command-completion-enabled' are both nil."
-  (add-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point nil t)
-  (add-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point nil t)
-  (add-hook 'agent-shell-prompt-queue-setup-minibuffer-functions
-            #'agent-shell-completion--setup-queued-prompt)
-  (when (or agent-shell-file-completion-enabled
-            agent-shell-command-completion-enabled)
-    (agent-shell-completion-mode +1)))
 
 (defun agent-shell-completion--setup-minibuffer (shell-buffer)
   "Enable @ and / completion in the current minibuffer for SHELL-BUFFER.
@@ -241,18 +201,17 @@ unless `agent-shell-file-completion-enabled' and
 @ always completes project files.  / completes available agent commands
 when SHELL-BUFFER has received them via ACP; if not, / is a no-op.
 
-Completion pops as they are typed only when SHELL-BUFFER has
-`agent-shell-completion-mode' enabled, so user preference set in the
-shell carries over."
-  (when (buffer-live-p shell-buffer)
+No-ops when SHELL-BUFFER does not have `agent-shell-completion-mode'
+enabled, so user preference set in the shell carries over."
+  (when (and (buffer-live-p shell-buffer)
+             (buffer-local-value 'agent-shell-completion-mode shell-buffer))
     (setq-local agent-shell-completion--shell-buffer shell-buffer)
     (add-hook 'completion-at-point-functions
               #'agent-shell--file-completion-at-point nil t)
     (add-hook 'completion-at-point-functions
               #'agent-shell--command-completion-at-point nil t)
-    (when (buffer-local-value 'agent-shell-completion-mode shell-buffer)
-      (add-hook 'post-self-insert-hook
-                #'agent-shell--trigger-completion-at-point nil t))
+    (add-hook 'post-self-insert-hook
+              #'agent-shell--trigger-completion-at-point nil t)
     (add-hook 'minibuffer-exit-hook
               #'agent-shell-completion--cleanup-minibuffer nil t)))
 
@@ -281,13 +240,24 @@ EVENT is an alist as that hook documents, for example:
     (agent-shell-completion--setup-minibuffer shell-buffer)))
 
 (define-minor-mode agent-shell-completion-mode
-  "Toggle popping completion as @ or / are typed.
-
-With the mode off, \\[completion-at-point] still completes them."
+  "Toggle agent shell completion with @ or / prefix."
   :lighter " @/Compl"
   (if agent-shell-completion-mode
-      (add-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point nil t)
-    (remove-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point t)))
+      (progn
+        (add-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point nil t)
+        (add-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point nil t)
+        (add-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point nil t)
+        (add-hook 'agent-shell-prompt-queue-setup-minibuffer-functions
+                  #'agent-shell-completion--setup-queued-prompt))
+    (remove-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point t)
+    (remove-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point t)
+    (remove-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point t)
+    ;; The minibuffer hook is global, so it goes once the last shell drops it.
+    (unless (seq-find (lambda (buffer)
+                        (buffer-local-value 'agent-shell-completion-mode buffer))
+                      (buffer-list))
+      (remove-hook 'agent-shell-prompt-queue-setup-minibuffer-functions
+                   #'agent-shell-completion--setup-queued-prompt))))
 
 (provide 'agent-shell-completion)
 

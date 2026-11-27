@@ -36,7 +36,6 @@
 (require 'acp)
 
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell-welcome-message "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (autoload 'agent-shell-make-agent-config "agent-shell")
@@ -63,20 +62,13 @@ Examples:
 This should be a list of environment variables to be used when
 starting the Grok Build client process.
 
-A value given as a function is resolved each time the agent starts,
-rather than when this variable is set.  See
-`agent-shell-make-environment-variables'.
-
 Example usage to set custom environment variables:
 
   (setq agent-shell-xai-environment
         (`agent-shell-make-environment-variables'
          \"MY_VAR\" \"some-value\"
          \"MY_OTHER_VAR\" \"another-value\"))"
-  :type '(repeat (choice (string :tag "NAME=VALUE")
-                         (cons :tag "Resolved at agent start"
-                               (string :tag "Name")
-                               (function :tag "Value function"))))
+  :type '(repeat string)
   :group 'agent-shell)
 
 (defcustom agent-shell-xai-default-model-id
@@ -149,7 +141,7 @@ ACP over stdio: grok agent stdio"))
 (defun agent-shell-xai--welcome-message (config)
   "Return Grok Build welcome message using `shell-maker' CONFIG."
   (let ((art (agent-shell--indent-string 4 (agent-shell-xai--ascii-art)))
-        (message (agent-shell-welcome-message config)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
     (concat "\n\n"
             art
             "\n\n"

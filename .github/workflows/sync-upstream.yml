@@ -1,0 +1,101 @@
+name: Sync upstream
+
+# Keep fork main exactly one commit ahead of xenodium/agent-shell.
+# Strategy: soft-reset onto upstream/main, then recreate a single squashed
+# patch commit and force-with-lease push (no merge commits).
+#
+# Notes:
+# - Scheduled workflows are off by default on forks. Enable Actions, then
+#   allow "Scheduled" (or run via workflow_dispatch).
+# - Default-branch force-push must be allowed for github-actions[bot]
+#   (no ruleset blocking force pushes to main).
+
+on:
+  schedule:
+    # Daily 11:00 UTC
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/xenodium/agent-shell.git
+          git fetch --no-tags upstream main
+
+      - name: Squash fork commits onto upstream/main
+        id: sync
+        run: |
+          set -euo pipefail
+          upstream=$(git rev-parse upstream/main)
+          ahead=$(git rev-list --count "${upstream}..HEAD")
+          echo "upstream=${upstream}" >> "$GITHUB_OUTPUT"
+          echo "ahead_before=${ahead}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$(git rev-parse HEAD)" == "${upstream}" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Fork main matches upstream/main (0 ahead)."
+            exit 0
+          fi
+
+          if git merge-base --is-ancestor "${upstream}" HEAD \
+            && [[ "${ahead}" -eq 1 ]] \
+            && [[ "$(git rev-parse HEAD^)" == "${upstream}" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already exactly 1 commit ahead of current upstream/main."
+            exit 0
+          fi
+
+          msg_file=$(mktemp)
+          if [[ "${ahead}" -eq 1 ]]; then
+            git log -1 --format=%B HEAD > "${msg_file}"
+          else
+            {
+              echo "dezzw patches on xenodium/agent-shell"
+              echo
+              echo "Squashed fork-only commits:"
+              git log --oneline "${upstream}..HEAD"
+            } > "${msg_file}"
+          fi
+
+          git reset --soft "${upstream}"
+          if git diff --cached --quiet; then
+            echo "No fork-only tree changes remain after reset."
+            git reset --hard "${upstream}"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "reset_to_upstream=true" >> "$GITHUB_OUTPUT"
+            rm -f "${msg_file}"
+            exit 0
+          fi
+
+          git commit -F "${msg_file}"
+          rm -f "${msg_file}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "reset_to_upstream=false" >> "$GITHUB_OUTPUT"
+          echo "ahead_after=1" >> "$GITHUB_OUTPUT"
+          echo "New tip: $(git rev-parse --short HEAD) (1 ahead of upstream/main)"
+
+      - name: Push main
+        if: steps.sync.outputs.changed == 'true'
+        run: git push --force-with-lease origin HEAD:main

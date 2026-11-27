@@ -26,11 +26,9 @@
 
 ;;; Code:
 
-(require 'map)
 (require 'project)
 (require 'subr-x)
 
-(defvar agent-shell--state)
 (defvar projectile-mode)
 
 (declare-function projectile-project-p "projectile")
@@ -61,26 +59,16 @@
 
 The function receives no arguments and should return a directory path.
 
-Shells call it once on start and reuse that directory thereafter.
-
 When nil (the default), `agent-shell-cwd' uses project root detection."
   :type '(choice (const :tag "Default (project root)" nil)
                  (function :tag "Custom function"))
   :group 'agent-shell)
 
 (defun agent-shell-cwd ()
-  "Return the working directory for the current shell, or for a new one.
+  "Return the CWD for this shell.
 
-Within a shell, return the directory it started in.  Elsewhere, return
-the directory a new shell would start in: `agent-shell-cwd-function'
-if set, else the project root, else `default-directory'."
-  (if (and (bound-and-true-p agent-shell--state)
-           (eq (map-elt agent-shell--state :buffer) (current-buffer)))
-      (expand-file-name default-directory)
-    (agent-shell--new-shell-cwd)))
-
-(defun agent-shell--new-shell-cwd ()
-  "Return the directory a new shell would start in."
+If `agent-shell-cwd-function' is set, use it.
+Otherwise, if in a project, use project root."
   (expand-file-name
    (or (when agent-shell-cwd-function
          (funcall agent-shell-cwd-function))

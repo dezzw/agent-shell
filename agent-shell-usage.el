@@ -47,34 +47,6 @@ context window usage, and cost information after each agent response."
   :type 'boolean
   :group 'agent-shell)
 
-(defcustom agent-shell-usage-expand-by-default nil
-  "Whether the usage section shown at turn end should be expanded by default.
-
-When nil (the default), the usage section is collapsed.
-When non-nil, the usage section is expanded.
-
-Only applies when `agent-shell-show-usage-at-turn-end' is non-nil."
-  :type 'boolean
-  :group 'agent-shell)
-
-(defcustom agent-shell-usage-format-function #'agent-shell-usage-multiline-format
-  "Function returning the usage text shown at turn end.
-
-Called with one argument, the usage alist, with keys like
-`:input-tokens', `:output-tokens', `:thought-tokens',
-`:cached-read-tokens', `:total-tokens', `:context-used',
-`:context-size', `:cost-amount' and `:cost-currency'.  Should return
-a (possibly propertized) string.
-
-Also used by `agent-shell-show-usage'.
-
-Built-in choices are `agent-shell-usage-multiline-format' and
-`agent-shell-usage-one-line-format'."
-  :type '(choice (const :tag "Multiline" agent-shell-usage-multiline-format)
-                 (const :tag "One line" agent-shell-usage-one-line-format)
-                 (function :tag "Custom function"))
-  :group 'agent-shell)
-
 (defcustom agent-shell-show-context-usage-indicator 'detailed
   "Whether and how to show the context usage indicator.
 
@@ -87,18 +59,6 @@ Only appears when the ACP server provides usage information."
   :type '(choice (const :tag "Hidden" nil)
                  (const :tag "Bar" t)
                  (const :tag "Detailed" detailed))
-  :group 'agent-shell)
-
-(defcustom agent-shell-show-cost-indicator nil
-  "Whether to show the session's cumulative cost in the header.
-
-When non-nil, the header shows the cost reported by the agent, for
-example \"$0.42\", after the context usage indicator.  Only appears
-once the ACP server reports a cost above zero.
-
-Has no effect when `agent-shell-header-style' is nil or none, since
-the cost is not shown in the mode line."
-  :type 'boolean
   :group 'agent-shell)
 
 (cl-defun agent-shell--save-usage (&key state acp-usage)
@@ -152,32 +112,12 @@ Checks if any token counts or context size are non-zero."
   "Display current session usage information in the minibuffer.
 This is a stub UI function for testing usage tracking before implementing
 a more polished presentation method."
-  (declare (modes agent-shell-mode))
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in an agent-shell buffer"))
   (unless (agent-shell--usage-has-data-p (map-elt agent-shell--state :usage))
     (error "Usage not available"))
-  (message "\n%s\n" (funcall agent-shell-usage-format-function
-                              (map-elt agent-shell--state :usage))))
-
-(defun agent-shell-usage-multiline-format (usage)
-  "Return USAGE formatted as right-aligned labeled rows.
-
-For example:
-
-   Context: 6k/1m (0.6%)
-    Tokens: 1k in · 110 out · 5k cached (6k total)
-      Cost: $0.01"
-  (agent-shell--format-usage usage t))
-
-(defun agent-shell-usage-one-line-format (usage)
-  "Return USAGE formatted as a single line.
-
-For example:
-
-  Context: 6k/1m (0.6%) Tokens: 1k in · 110 out (1k total) Cost: $0.01"
-  (agent-shell--format-usage usage))
+  (message "\n%s\n" (agent-shell--format-usage (map-elt agent-shell--state :usage) t)))
 
 (defun agent-shell--format-usage (usage &optional multiline)
   "Format USAGE data as a display string.
@@ -221,7 +161,14 @@ When MULTILINE is non-nil, format as right-aligned labeled rows."
            (if (> n 0)
                (format " (%s total)" (agent-shell--format-number-compact n))
              "")))
-        (cost (agent-shell--format-cost usage)))
+        (cost
+         (concat
+          (if (map-elt usage :cost-currency)
+              (map-elt usage :cost-currency)
+            "$")
+          (if (and (map-elt usage :cost-amount) (> (map-elt usage :cost-amount) 0))
+              (format "%.2f" (map-elt usage :cost-amount))
+            "0.00"))))
     (if multiline
         (concat
          (propertize " Context: "
@@ -249,43 +196,6 @@ When MULTILINE is non-nil, format as right-aligned labeled rows."
                    'face 'agent-shell-secondary
                    'font-lock-face 'agent-shell-secondary)
        cost))))
-
-(defun agent-shell--format-cost (usage)
-  "Format USAGE's cost as currency followed by amount.
-
-Dollars are the common case, so USD (or no currency at all) renders
-as \"$\".  Any other ISO 4217 code is kept as reported.
-
-Amounts round up to the next cent, so a session that spent a
-fraction of a cent never reads as free.
-
-For example, :cost-amount 0.4237 with :cost-currency \"USD\" gives
-\"$0.43\", with \"CHF\" gives \"CHF 0.43\", :cost-amount 0.000597
-gives \"$0.01\", and no cost gives \"$0.00\"."
-  (concat (if (member (map-elt usage :cost-currency) '(nil "USD"))
-              "$"
-            (concat (map-elt usage :cost-currency) " "))
-          ;; Back off by a tolerance before rounding up, since an exact
-          ;; cent does not survive the scaling: (* 0.07 100) is
-          ;; 7.00000000000000089, which would otherwise reach 8 cents.
-          (format "%.2f" (/ (ceiling (- (* (or (map-elt usage :cost-amount) 0) 100)
-                                        1e-9))
-                            100.0))))
-
-(defun agent-shell--cost-indicator ()
-  "Return the session's cumulative cost for the header, or nil.
-
-Shown only when `agent-shell-show-cost-indicator' is non-nil and the
-ACP server has reported a cost above zero, so agents that never
-report cost leave the header unchanged.
-
-For example, a session at 0.4237 USD gives \"$0.42\"."
-  (when-let* ((agent-shell-show-cost-indicator)
-              (usage (map-elt (agent-shell--state) :usage))
-              ((> (or (map-elt usage :cost-amount) 0) 0)))
-    (propertize (agent-shell--format-cost usage)
-                'face 'agent-shell-secondary
-                'help-echo (agent-shell--format-usage usage))))
 
 (defun agent-shell--context-usage-face (percentage)
   "Return the face for context usage at PERCENTAGE.
